@@ -191,14 +191,17 @@ function trackInfo(track) {
 }
 
     // previewbuffer
-    let pvVideo; 
+    let pvVideo;
     let pvSource = new MediaSource();
     pvVideo = document.getElementById("pvVideo");
     let pvopen;
     let buffer;
-    pvSource.onsourceopen = () => {
-      buffer = pvSource.addSourceBuffer("video/webm;codecs=vp8");
-      console.log("pvsource opened");
+pvSource.onsourceopen = () => {
+    const mimeType = 'video/webm;codecs=vp8';
+    console.log('mimeType', mimeType, 'supported:',
+		MediaSource.isTypeSupported(mimeType));
+      buffer = pvSource.addSourceBuffer(mimeType);
+    console.log("pvsource opened", buffer);
       pvopen = true;
       buffer.addEventListener('updatestart', function(e) { console.log('updatestart: ' + pvSource.readyState); });
       buffer.addEventListener('update', function(e) { console.log('update: ' + pvSource.readyState); });
@@ -233,7 +236,7 @@ const readAsArrayBuffer = function(blob) {
 //      return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
-          var ab = reader.result;
+          const ab = reader.result;
         //  if (pvSource.readyState == 'open') {
             
            // console.log("ready to receive");
@@ -259,7 +262,7 @@ const readAsArrayBuffer = function(blob) {
 
 function gotRemoteStream(e) {
   if (remoteVideo.srcObject !== e.streams[0]) {
-    var remoteStream = e.streams[0];
+    const remoteStream = e.streams[0];
     //  console.log("this is the remote streams and tracks: ");
      // console.log(remoteStream);
 
@@ -281,9 +284,9 @@ function gotRemoteStream(e) {
     }, 9000);
 */
 
-    var totalsize = 0
-    var numblobs = 0;
-    var recorder = RecordRTC(remoteStream, {
+    let totalsize = 0
+    let numblobs = 0;
+    let recorder = RecordRTC(remoteStream, {
       recorderType: MediaStreamRecorder,
       mimeType: 'video/webm;codecs=vp8',
       timeSlice: 100, // pass this parameter
