@@ -1,6 +1,22 @@
 const params = new URLSearchParams(location.search.slice(1));
+
+//var conn;
+
 var USER_ID = new String(Math.floor(Math.random() * (1000000001)));
+//var USER_ID = "23";
+
+
+
 const roomId = params.get("room") != null ? params.get("room") : "42";
+
+const DATACHAN_CONF = {
+  ordered: false, 
+  maxRetransmits: 0,
+//  maxPacketLifeTime: null,
+  protocol: "",
+//  negotiated: false,
+
+};
 
 const PEER_CONNECTION_CONFIG = {
   iceServers: [
@@ -31,7 +47,7 @@ function isError(signal) {
 
 function receiveMsg(session,ev) {
   session.receive(JSON.parse(ev.data))
-  console.log(ev.data);
+  //console.log(ev.data);
 }
 
 function connect(server) {
@@ -47,21 +63,6 @@ function connect(server) {
       .then(x => { c.publisher = x; }, err => console.error("Error attaching publisher: ", err));
   });
 }
-
-document.getElementById("micButton").addEventListener("click", _ => {
-  var constraints = { audio: true };
-  navigator.mediaDevices.getUserMedia(constraints)
-    .then(m => m.getTracks().forEach(t => c.publisher.conn.addTrack(t, m)))
-    .catch(e => console.error("Error requesting media: ", e));
-});
-
-document.getElementById("screenButton").addEventListener("click", _ => {
-  var constraints = { video: { mediaSource: "screen" } };
-  navigator.mediaDevices.getUserMedia(constraints)
-    .then(m => m.getTracks().forEach(t => c.publisher.conn.addTrack(t, m)))
-    .catch(e => console.error("Error requesting media: ", e));
-});
-
 function addUser(session, userId) {
   console.info("Adding user " + userId + ".");
   return attachSubscriber(session, userId)
@@ -87,6 +88,7 @@ function updateMessageCount() {
 }
 
 let firstMessageTime;
+
 function storeMessage(data, reliable) {
   if (!firstMessageTime) {
     firstMessageTime = performance.now();
@@ -94,7 +96,8 @@ function storeMessage(data, reliable) {
   messages.push({
     time: performance.now() - firstMessageTime,
     reliable,
-    message: JSON.parse(data)
+//    message: JSON.parse(data)
+    message: data,
   });
   updateMessageCount();
 }
@@ -107,9 +110,9 @@ function storeUnreliableMessage(ev) {
   storeMessage(ev.data, false);
 }
 
-function storeVideoMessage(ev) {
-  //storeMessage(ev.data, false);
-  console.log('videomessage')
+function storeVideoMessage(ev, from) {
+  storeMessage(ev.data, false);
+  console.log('videomessage from: ' + from )
   console.log(ev.data);
 }
 
@@ -128,12 +131,28 @@ function waitForEvent(name, handle) {
   return new Promise(resolve => handle.on(name, resolve));
 }
 
-function associate(conn, handle) {
+function addExisting(conn, handle, debugmsg) {
+ // handle is plugin handle, conn is peerconnection 
+conn.createOffer(
+    {
+      media: { addData: true },
+        success: function(jsep) {
+            Janus.debug(jsep);
+            //echotest.send({message: {audio: true, video: true}, "jsep": jsep});
+        },
+        error: function(error) {
+            console.log("renegotiate error " + JSON.stringify(error));
+        }
+    }); 
+}
+
+
+function associate(conn, handle, debugmsg) {
   conn.addEventListener("icecandidate", ev => {
     handle.sendTrickle(ev.candidate || null).catch(e => console.error("Error trickling ICE: ", e));
   });
   conn.addEventListener("negotiationneeded", _ => {
-    console.info("Sending new offer for handle: ", handle);
+    console.info("Sending new offer for handle: ", handle, debugmsg);
     var offer = conn.createOffer();
     var local = offer.then(o => conn.setLocalDescription(o));
     var remote = offer.then(j => handle.sendJsep(j)).then(r => conn.setRemoteDescription(r.jsep));
@@ -141,14 +160,14 @@ function associate(conn, handle) {
   });
   handle.on("event", ev => {
     if (ev.jsep && ev.jsep.type == "offer") {
-      console.info("Accepting new offer for handle: ", handle);
+      console.info("Accepting new offer for handle: ", handle, debugmsg);
       var answer = conn.setRemoteDescription(ev.jsep).then(_ => conn.createAnswer());
       var local = answer.then(a => conn.setLocalDescription(a));
       var remote = answer.then(j => handle.sendJsep(j));
       Promise.all([local, remote]).catch(e => console.error("Error negotiating answer: ", e));
     } else {
-      console.log('other event');
-      console.log(ev);
+      //console.log('other event');
+      //console.log(ev);
     }
   });
 }
@@ -169,13 +188,22 @@ function sendData(channel, msg) {
   }
 }
 
+function newDataChannel ( id ) {
+  const channel = janusconn.createDataChannel(id , DATACHAN_CONF );
+  channel.addEventListener("message", storeUnreliableMessage);
+ // videoChannel.addEventListener("message", storeUnreliableMessage);
+  channel.addEventListener("onopen", sendData(channel, "chan is now open" + id));
+  setInterval(sendData, 1000, channel, "every second a messae on " + id);
+  return channel
+}
 
 async function attachPublisher(session) {
   console.info("Attaching publisher for session: ", session);
-  var conn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
+ // don't need a new one
+  janusconn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
   var handle = new Minijanus.JanusPluginHandle(session);
-  associate(conn, handle);
-
+  associate(janusconn, handle, "attach publisher");
+  
   // Handle all of the join and leave events.
   handle.on("event", ev => {
     var data = ev.plugindata.data;
@@ -190,21 +218,16 @@ async function attachPublisher(session) {
 
   await handle.attach("janus.plugin.sfu")
   showStatus(`Connecting WebRTC...`);
-
-  const reliableChannel = conn.createDataChannel("reliable", { ordered: true });
-  reliableChannel.addEventListener("message", storeReliableMessage);
-  setInterval(sendData, 1000, reliableChannel, "every second a messae on the reliable channel");
-
-  const unreliableChannel = conn.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
-  unreliableChannel.addEventListener("message", storeUnreliableMessage);
-  setInterval(sendData, 1000, unreliableChannel, "every second a messae on the unreliable channel");
-
-
-  const videoChannel = conn.createDataChannel("video" + USER_ID, { ordered: false, maxRetransmits: 0 });
-  videoChannel.addEventListener("message", storeVideoMessage);
+  
+  // this is the channel we gonna publish video on
+  const videoChannel = newDataChannel("video");
+/*
+  const videoChannel = janusconn.createDataChannel("video" + USER_ID , DATACHAN_CONF );
+  videoChannel.addEventListener("message", storeUnreliableMessage);
+ // videoChannel.addEventListener("message", storeUnreliableMessage);
   videoChannel.addEventListener("onopen", sendData(videoChannel, "chan is now open"));
   setInterval(sendData, 1000, videoChannel, "every second a messae");
-
+*/
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${roomId}...`);
   const reply = await handle.sendMessage({
@@ -218,15 +241,27 @@ async function attachPublisher(session) {
   var occupants = reply.plugindata.data.response.users[roomId] || [];
   await Promise.all(occupants.map(userId => addUser(session, userId)));
 
-  return { handle, conn, reliableChannel, unreliableChannel, videoChannel };
+  // returns handle + rtcpeerconn
+  return { handle, janusconn};
 }
 
 function attachSubscriber(session, otherId) {
   console.info("Attaching subscriber to " + otherId + " for session: ", session);
   var conn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
   var handle = new Minijanus.JanusPluginHandle(session);
-  associate(conn, handle);
+  addExisting(conn, handle, "attach subscriber: " + otherId);
+  const otherVideoChannel = newDataChannel("video" + otherId);
 
+
+//  associate(conn, handle, "attach subscriber: " + otherId);
+  //const vch = conn.createDataChannel("video" + otherId, DATACHAN_CONF) ;
+  //vch.addEventListener("message", storeUnreliableMessage);
+/*
+  vch.addEventListener("onopen", sendData(vch, "chan is now open"));
+  setInterval(sendData, 1000, vch, "every second a messae");
+
+*/
+    /*
   conn.addEventListener("track", ev => {
     console.info("Attaching " + ev.track.kind + " track from " + otherId + " for session: ", session);
     var mediaEl = document.createElement(ev.track.kind);
@@ -237,6 +272,7 @@ function attachSubscriber(session, otherId) {
     document.body.appendChild(mediaEl);
   });
 
+    */
   return handle.attach("janus.plugin.sfu")
     .then(_ => handle.sendMessage({ kind: "join", room_id: roomId, user_id: USER_ID, subscribe: { media: otherId }}))
     .then(_ => waitForEvent("webrtcup", handle))
