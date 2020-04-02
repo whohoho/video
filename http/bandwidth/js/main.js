@@ -196,8 +196,11 @@ function trackInfo(track) {
     pvVideo = document.getElementById("pvVideo");
     let pvopen;
     let buffer;
-    pvSource.onsourceopen = () => {
-      buffer = pvSource.addSourceBuffer("video/webm;codecs=vp8");
+pvSource.onsourceopen = () => {
+    const mimeType = 'video/webm;codecs=vp8';
+    console.log('mimeType', mimeType, 'supported:',
+		MediaSource.isTypeSupported(mimeCodec));
+      buffer = pvSource.addSourceBuffer(mimeType);
       console.log("pvsource opened");
       pvopen = true;
       buffer.addEventListener('updatestart', function(e) { console.log('updatestart: ' + pvSource.readyState); });
