@@ -7,6 +7,8 @@
  */
 /* global TimelineDataSeries, TimelineGraphView */
 
+
+
 'use strict';
 
 const remoteVideo = document.querySelector('video#remoteVideo');
@@ -189,35 +191,84 @@ function trackInfo(track) {
 }
 
     // previewbuffer
+    let pvVideo; 
     let pvSource = new MediaSource();
-    let video = document.createElement('video');
-    var pvBuffer;
-    var pvopen;
+    pvVideo = document.getElementById("pvVideo");
+    let pvopen;
+    let buffer;
     pvSource.onsourceopen = () => {
-      let pvBuffer = pvSource.addSourceBuffer("video/webm");
+      buffer = pvSource.addSourceBuffer("video/webm;codecs=vp8");
       console.log("pvsource opened");
       pvopen = true;
+      buffer.addEventListener('updatestart', function(e) { console.log('updatestart: ' + pvSource.readyState); });
+      buffer.addEventListener('update', function(e) { console.log('update: ' + pvSource.readyState); });
+      buffer.addEventListener('updateend', function(e) { 
+          pvSource.endOfStream();
+          pvSource.duration = 120;
+      //video.play();
+          console.log('updateend: ' + pvSource.readyState); 
+
+      });
+      buffer.addEventListener('error', function(e) { console.log('error: ' + pvSource.readyState); });
+      buffer.addEventListener('abort', function(e) { console.log('abort: ' + pvSource.readyState); });
+
+      //     buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
+      //if (queue.length > 0 && !buffer.updating) {
+       // buffer.appendBuffer(queue.shift());
+      //}
+
     }
 
-    video.src = URL.createObjectURL(pvSource);
-    document.body.appendChild(video);
-    video.controls = true;
-    video.autoplay = true;
 
+pvSource.addEventListener('sourceopen', function(e) { console.log('sourceopen: ' + pvSource.readyState); });
+pvSource.addEventListener('sourceended', function(e) { console.log('sourceended: ' + pvSource.readyState); });
+pvSource.addEventListener('sourceclose', function(e) { console.log('sourceclose: ' + pvSource.readyState); });
+pvSource.addEventListener('error', function(e) { console.log("pvsource onerror: "); console.log(e); });
 
+      pvVideo.src = URL.createObjectURL(pvSource);
+    //pvVideo.controls = true;
+    //pvVideo.autoplay = true;
+
+const readAsArrayBuffer = function(blob) {
+//      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          var ab = reader.result;
+        //  if (pvSource.readyState == 'open') {
+            
+           // console.log("ready to receive");
+           // console.log(buffer);
+            buffer.ended = false;
+            if (!buffer.updating) {
+            //sourceBuffer.appendBuffer(new Uint8Array(xhr.response));
+            buffer.appendBuffer(ab);
+             } else
+          { console.log("updating"); }
+          //buf = pvSource.addSourceBuffer("video/webm;codecs=vp8");
+        //  }
+
+        };
+        let x = reader.readAsArrayBuffer(blob);
+        console.log('file read', x);
+
+        //reader.onerror = (ev) => {
+        //  reject(ev.error);
+        //};
+      //});
+    }
 
 function gotRemoteStream(e) {
   if (remoteVideo.srcObject !== e.streams[0]) {
     var remoteStream = e.streams[0];
-      console.log("this is the remote streams and tracks: ");
-      console.log(remoteStream);
+    //  console.log("this is the remote streams and tracks: ");
+     // console.log(remoteStream);
 
-      console.log("all tracks in remotestream: ");
-      remoteStream.getTracks().forEach(track => trackInfo(track));
+     // console.log("all tracks in remotestream: ");
+     // remoteStream.getTracks().forEach(track => trackInfo(track));
      
       // recrding it
-//    var options = { mimeType: "video/webm; codecs=vp9" };
-    var options = { };
+ //   var options = { mimeType: "video/webm; codecs=vp9" };
+//    var options = { };
 /*
     mediaRecorder = new MediaRecorder(remoteStream, options);
 
@@ -234,29 +285,26 @@ function gotRemoteStream(e) {
     var numblobs = 0;
     var recorder = RecordRTC(remoteStream, {
       recorderType: MediaStreamRecorder,
-      mimeType: 'video/webm',
-      timeSlice: 1000, // pass this parameter
+      mimeType: 'video/webm;codecs=vp8',
+      timeSlice: 100, // pass this parameter
       getNativeBlob: true,
       ondataavailable: function(blob) {
-        console.log(blob);
+      //  console.log(blob);
        
-        console.log("pvSource");
-        console.log(pvSource)
-        if (pvSource.readyState == 'open') {
-          console.log("ready to receive");
-          console.log(pvBuffer);
-        }
-        //pvBuffer.appendBuffer(blob);
-
         blobs.push(blob);
         numblobs = 0;
-        console.log("size of blob: " + bytesToSize(blob.size));
+       // console.log("size of blob: " + bytesToSize(blob.size));
         numblobs += 1;
         totalsize += blob.size;
 
-        console.log( "size in this callback: " + bytesToSize(blob.size) + 
-                      'Total blobs: ' + blobs.length + ' (Total size: ' + bytesToSize(totalsize) + ')' );
-      }
+        //console.log( "size in this callback: " + bytesToSize(blob.size) + 
+         //             'Total blobs: ' + blobs.length + ' (Total size: ' + bytesToSize(totalsize) + ')' );
+//https://github.com/video-dev/hls.js/blob/master/src/controller/buffer-controller.ts
+      //  console.log("pvSource");
+      //  console.log(pvSource)
+        readAsArrayBuffer(blob);
+               
+              }
     });
       recorder.startRecording();
 
