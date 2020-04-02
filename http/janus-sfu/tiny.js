@@ -29,13 +29,18 @@ function isError(signal) {
   return isPluginError || Minijanus.JanusSession.prototype.isError(signal);
 }
 
+function receiveMsg(session,ev) {
+  session.receive(JSON.parse(ev.data))
+  console.log(ev.data);
+}
+
 function connect(server) {
   document.getElementById("janusServer").value = server;
   showStatus(`Connecting to ${server}...`);
   var ws = new WebSocket(server, "janus-protocol");
   var session = c.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
   session.isError = isError;
-  ws.addEventListener("message", ev => session.receive(JSON.parse(ev.data)));
+  ws.addEventListener("message", ev => receiveMsg(session,ev));
   ws.addEventListener("open", _ => {
     session.create()
       .then(_ => attachPublisher(session))
@@ -102,6 +107,13 @@ function storeUnreliableMessage(ev) {
   storeMessage(ev.data, false);
 }
 
+function storeVideoMessage(ev) {
+  //storeMessage(ev.data, false);
+  console.log('videomessage')
+  console.log(ev.data);
+}
+
+
 document.getElementById("saveButton").addEventListener("click", function saveToMessagesFile() {
   const file = new File([JSON.stringify(messages)], "messages.json", {type: "text/json"});
   saveAs(file);
@@ -134,9 +146,29 @@ function associate(conn, handle) {
       var local = answer.then(a => conn.setLocalDescription(a));
       var remote = answer.then(j => handle.sendJsep(j));
       Promise.all([local, remote]).catch(e => console.error("Error negotiating answer: ", e));
+    } else {
+      console.log('other event');
+      console.log(ev);
     }
   });
 }
+
+function sendData(channel, msg) {
+  let obj = {
+    "message": msg,
+    "timestamp": new Date(),
+    "from": USER_ID
+  }
+  if (channel.readyState == 'open') {
+    console.log('sending: ');
+    console.log(obj);
+    channel.send(JSON.stringify(obj));
+  } else {
+    console.log('error');
+    console.log(channel.readyState);
+  }
+}
+
 
 async function attachPublisher(session) {
   console.info("Attaching publisher for session: ", session);
@@ -158,10 +190,20 @@ async function attachPublisher(session) {
 
   await handle.attach("janus.plugin.sfu")
   showStatus(`Connecting WebRTC...`);
+
   const reliableChannel = conn.createDataChannel("reliable", { ordered: true });
   reliableChannel.addEventListener("message", storeReliableMessage);
+  setInterval(sendData, 1000, reliableChannel, "every second a messae on the reliable channel");
+
   const unreliableChannel = conn.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
   unreliableChannel.addEventListener("message", storeUnreliableMessage);
+  setInterval(sendData, 1000, unreliableChannel, "every second a messae on the unreliable channel");
+
+
+  const videoChannel = conn.createDataChannel("video" + USER_ID, { ordered: false, maxRetransmits: 0 });
+  videoChannel.addEventListener("message", storeVideoMessage);
+  videoChannel.addEventListener("onopen", sendData(videoChannel, "chan is now open"));
+  setInterval(sendData, 1000, videoChannel, "every second a messae");
 
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${roomId}...`);
@@ -176,7 +218,7 @@ async function attachPublisher(session) {
   var occupants = reply.plugindata.data.response.users[roomId] || [];
   await Promise.all(occupants.map(userId => addUser(session, userId)));
 
-  return { handle, conn, reliableChannel, unreliableChannel };
+  return { handle, conn, reliableChannel, unreliableChannel, videoChannel };
 }
 
 function attachSubscriber(session, otherId) {
