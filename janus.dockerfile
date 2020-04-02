@@ -168,6 +168,26 @@ RUN \
     && rm -rf /usr/share/doc/* \
     && rm -rf /var/lib/apt/*
 
+# build plugin
+
+RUN echo "deb http://http.debian.net/debian/ testing main contrib non-free" > /etc/apt/sources.list \
+   && apt-get update
+RUN apt-get install -y libglib2.0-dev libjansson-dev cargo ca-certificates
+
+RUN cd ${BUILD_SRC}/ \
+  && git clone https://github.com/mozilla/janus-plugin-sfu.git
+
+RUN cd ${BUILD_SRC}/janus-plugin-sfu \
+  && cargo build \
+  && cargo test
+
+RUN ls -lhtr  ${BUILD_SRC}/*
+RUN ls -lhtr  ${BUILD_SRC}/janus-plugin-sfu/*
+#RUN ls -lhtr  /opt/janus/lib/janus/plugins/
+#RUN ls -lhtr  /opt/janus/lib/janus/
+RUN cp ${BUILD_SRC}/janus-plugin-sfu/target/debug/libjanus_plugin_sfu.so /opt/janus/lib/janus/plugins/
+#RUN cp ${BUILD_SRC}/janus-plugin-sfu/target/release/libjanus_plugin_sfu.so /opt/janus/lib/janus/plugins/
+
 USER janus
 
 CMD ["/opt/janus/bin/janus"]
