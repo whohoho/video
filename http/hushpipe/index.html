@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Tiny test page</title>
+    <style>body { font-family: sans-serif; }</style>
+    <script src="crypto.js"></script>
+    <script src="hushpipe.js"></script>
+  </head>
+  <body>
+    <p>
+      <fieldset>
+	<legend>Hushpipe controls</legend>
+	<button id="hush_newroom" onclick="new_key();">New room + key</button>
+	<button id="hush_getkey">Clear</button>
+	<div>
+	  <label>Room key: </label><span id="hush_room_key_label"></span>
+	</div>
+      </fieldset>
+    </p>
+
+
+    <form method="GET">
+      <label>Server: <input id="janusServer" name="janus"/></label><input type="submit" value="Go" /></form>
+    <p><label>Status: </label><span id="status"></span></p>
+
+    <p>
+      <button id="micButton">Share microphone</button>
+      <button id="screenButton">Share screen</button>
+    </p>
+
+    <fieldset>
+      <legend>Data messages</legend>
+      <div><label>Message count: </label><span id="messageCount"></span></div>
+      <button id="saveButton">Save</button>
+      <button id="clearButton">Clear</button>
+    </fieldset>
+
+    <script crossorigin src="adapter.js"></script>
+    <script crossorigin src="bundle.js"></script>
+    <script src="tiny.js"></script>
+  </body>
+</html>
