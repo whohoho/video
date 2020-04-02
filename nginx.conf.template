@@ -1,0 +1,35 @@
+daemon off;
+
+error_log /dev/stdout info;
+
+events {
+    worker_connections 1024;
+}
+
+
+http {
+    access_log /dev/stdout combined;
+
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    server {
+        listen 80;
+
+        # Uncomment these lines to enable SSL.
+        # Update the ssl paths with your own certificate and private key.
+        # listen 443 ssl;
+        # ssl_certificate     /opt/certs/example.com.crt;
+        # ssl_certificate_key /opt/certs/example.com.key;
+
+        root /www/static;
+        location / {
+            autoindex on;
+
+            #alias /www/static;
+        }
+
+    }
+}
