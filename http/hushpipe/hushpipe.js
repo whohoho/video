@@ -6,6 +6,13 @@ let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
 
 async function
+hush_render_friends()
+{
+  console.log(subscribers);
+}
+
+
+async function
 hush_read_key()
 {
 //    try {
@@ -133,4 +140,7 @@ hush_onload()
     hush_read_key();
 
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
+
+    setInterval(hush_render_friends());
+
 }
