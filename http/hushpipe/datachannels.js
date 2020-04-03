@@ -51,8 +51,20 @@ function janus_connect(ctx, server) {
   });
 }
 function addUser(ctx, userId) {
-   console.log("ctx in addUser: ", ctx);
+  console.log("ctx in addUser: ", ctx);
 
+  const users = document.getElementById('friends');
+  console.log(users);
+  if (document.getElementById(userId)) {
+    throw "2 users with same id" ;
+  }
+  const user = document.createElement('div');
+  users.appendChild(user);
+  user.user_id = userId;
+  user.setAttribute('id', userId);
+  title = document.createElement('h1');
+  title.textContent = userId;
+  user.appendChild(title);
   console.info("Adding user " + userId + ".");
   return attachSubscriber(ctx, userId)
     .then(x =>   { ctx.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
@@ -60,11 +72,21 @@ function addUser(ctx, userId) {
 
 function removeUser(ctx, userId) {
   console.info("Removing user " + userId + ".");
-  var subscriber = c.subscribers[userId];
+
+  const users = document.getElementById('friends');
+  console.log(users);
+  if (! document.getElementById(userId)) {
+    throw "user to remove is not there" ;
+  }
+  user = document.getElementById(userId);
+  user.parentNode.removeChild(user);
+
+
+  var subscriber = ctx.subscribers[userId];
   if (subscriber != null) {
     subscriber.handle.detach();
     subscriber.conn.close();
-    delete c.subscribers[userId];
+    delete ctx.subscribers[userId];
   }
 }
 
@@ -202,6 +224,9 @@ async function attachPublisher(ctx) {
       this.removeUser(ctx, data.user_id);
     } else if (data.event == "data") {
       console.log(data);
+    } else {
+      console.log('unhandled event: ', ev);
+    //  throw "unhandled event";
     }
   });
 

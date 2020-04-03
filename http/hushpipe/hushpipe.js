@@ -4,11 +4,12 @@ let hush_key; /* Key used to encrypt/decrypt */
 let hush_room; /* Room ID derived from master key */
 let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
+let gctx;
 
-async function
-hush_render_friends()
+function
+hush_render_friends(mouseevent)
 {
-  console.log(subscribers);
+  console.log("rendering friends: ", gctx);
 }
 
 
@@ -29,7 +30,6 @@ hush_read_key()
   //  }
 }
 
-let gctx;
 
 /*
  * Callback handler for the hush_newroom button
@@ -121,6 +121,7 @@ hush_onload()
     $('#hush_newroom').onclick = hush_newroom;
     $('#hush_camera_record').onclick = hush_camera_record;
     $('#hush_camera_stop').onclick = hush_camera_stop;
+    $('#hush_render_friends').onclick = hush_render_friends;
 
     /* Check if we already have a key: */
     try {
@@ -148,6 +149,7 @@ hush_onload()
 
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
 
-    setInterval(hush_render_friends());
+    setInterval(10, hush_render_friends(ctx));
+  console.log('wtf');
 
 }
