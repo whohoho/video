@@ -2,20 +2,22 @@
 let chunks = [];
 const AUDIO_CONSTRAINTS = {audio: true};
 const AUDIO_MIME = 'audio/webm;codecs=opus';
-const VIDEO_CONSTRAINTS = {audio: true};
+const VIDEO_CONSTRAINTS = {video: true};
 const VIDEO_MIME = 'video/webm;codecs=vp8';
 
 
 const BUF_SIZE = 1;
-const AUDIO_RECOPT = { audioBitsPerSecond :  256000,
-	      videoBitsPerSecond : 2500000,
-	      bitsPerSecond:       2628000,
+const AUDIO_RECOPT = { 
+        //audioBitsPerSecond :  256000,
+	      //videoBitsPerSecond : 2500000,
+	      //bitsPerSecond:       2628000,
 	      mimeType : AUDIO_MIME,
-        timeslice: 10,
+        timeslice: 1000,
 	    };
+
 const VIDEO_RECOPT = { audioBitsPerSecond :  256000,
-	      videoBitsPerSecond : 2500000,
-	      bitsPerSecond:       2628000,
+	      //videoBitsPerSecond : 2500000,
+	      //bitsPerSecond:       2628000,
 	      mimeType : VIDEO_MIME,
         timeslice: 10,
 	    };
@@ -37,8 +39,6 @@ function makeMediaStream(inputstream, recopts) {
     start(controller) {
       console.log("stream has started");
       console.log(recorder.state);
-
-//      recorder.ondataavailable = event => la(event);
       recorder.ondataavailable = function (ev) {
         controller.enqueue(ev.data);
         console.log(ev.data);
@@ -72,9 +72,11 @@ async function getMedia(constraints) {
 function insertPlayer (stream) {
 
 
-    var mediaEl = document.createElement("audio");
+    var mediaEl = document.createElement("video");
     mediaEl.controls = true;
     mediaEl.autoplay = true;
+    mediaEl.play = true;
+
 //    mediaEl.srcObject = stream;
     //mediaEl.src = stream;
 
@@ -94,6 +96,12 @@ async function test () {
   let audiostream = await makeMediaStream(audioin, AUDIO_RECOPT);
   console.log("we have audio, trying to play");
   insertPlayer(audiostream);
+
+  let videoin = await getMedia(VIDEO_CONSTRAINTS);
+  let videostream = await makeMediaStream(videoin, VIDEO_RECOPT);
+  console.log("we have video, trying to play");
+  insertPlayer(videostream);
+
 
   /*
   let response = new Response(stream2);
