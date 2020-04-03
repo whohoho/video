@@ -57,6 +57,9 @@ async function hush_play_datachannel(evt, feed) {
 // takes encrypted uint8array + feed element (div with 1 video inside)
 async function hush_play_video(ciphertext, feed) {
    //console.log('encrypted: ', ciphertext, 'on feed: ' , feed); 
+   let v = feed.getElementsByTagName('video')[0];
+  console.log('vid state: ', feed.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
+
     try {
    var plain = await decrypt_uint8array(hush_key, ciphertext);
     } catch (err) {
@@ -64,32 +67,10 @@ async function hush_play_video(ciphertext, feed) {
       console.log('decryption failed (hush_play_video): ', err, ciphertext, feed);
       return;
     }
-  //console.log('decrypted in play_video', plain , feed);
 
-   /* 
-   const videl1 = hush_camera_loopback = hush_new_feed($('#testface'), "video_high").getElementsByTagName('video')[0];
-    console.log(videl1);
-
-  */ 
-
-/*
-  try {
-   videl.buf.appendBuffer(plain);
-	 videl.play();
-   console.log(videl);
-  } catch (err) {
-      console.log('playing failed (hush_play_video): ', err, feed, plain, videl);
-
-  }
-*/
-
-    const videl = feed.getElementsByTagName('video')[0]
-//	  const preview = hush_camera_loopback.getElementsByTagName('video')[0]
-    //console.log('preview vs videl : ', preview, videl);
+  const videl = feed.getElementsByTagName('video')[0]
     videl.buf.appendBuffer(plain);
 	  videl.play();
-    //console.log(preview);
-
 }
 
 function

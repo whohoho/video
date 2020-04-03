@@ -69,6 +69,7 @@ function getUserEl(userId) {
     const user = document.createElement('div');
     user.janus_user_id = userId;
     user.setAttribute('id', elid);
+    user.setAttribute('class', 'friend_div');
     users.appendChild(user);
     let title = document.createElement('h1');
     title.textContent = userId;
