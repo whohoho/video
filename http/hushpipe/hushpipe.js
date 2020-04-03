@@ -59,23 +59,65 @@ async function hush_play_datachannel(evt, feed) {
    hush_play_video(uint8View, feed)
 }
 
-// takes encrypted uint8array + feed element (div with 1 video inside)
-async function hush_play_video(ciphertext, feed) {
-   //console.log('encrypted: ', ciphertext, 'on feed: ' , feed); 
-   let v = feed.getElementsByTagName('video')[0];
-  console.log('vid state: ', feed.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
+async function
+hush_append_buffer(video_element, plaintext)
+{
+    try {
+	/* be optimistic */
+	video_element.buf.appendBuffer(plaintext);
+	return;
+    } catch (e) {
+	console.log('appendBufferfailed on',video_element, e);
+	//video_element.play();
+    }
+
+    if (!video_element.buf) {
+	console.log('this video element has no buf (are we in the process of making new?)', video_element);
+	throw 'video has no buf';
+    }
+    if (video_element.buf.mode != 'segments')
+	throw 'video is not segments WHAT\nx\nx\nx';
+    if (video_element.buf.updating){
+	/*
+	 * Technically speaking we should wait, instead we just drop frames
+	 */
+	return;
+    }
+    if (video_element.buf.error) // then we should wait
+	throw 'video is ERRORed WHAT\ngx\nx\nx';
+    // maybe look at video_element.readyState
 
     try {
-   var plain = await decrypt_uint8array(hush_key, ciphertext);
-    } catch (err) {
+	video_element.buf.appendBuffer(plaintext);
+    } catch (e) {
+	console.log('appendBufferfailed on',video_element, e);
+	//video_element.play();
+    }
+}
 
+/*
+ * takes encrypted uint8array + feed element (div with 1 video inside)
+ * decrypts, adds the plaintext to the video buffer
+ */
+async function
+hush_play_video(ciphertext, feed)
+{
+    //console.log('encrypted: ', ciphertext, 'on feed: ' , feed);
+    const v = feed.getElementsByTagName('video')[0];
+    console.log(
+	`vid state: ${feed.parentElement.id} , v.currentTime:`,v.currentTime,
+	`, v.buffered:`, v.buffered,
+	`, v.currentSrc:${v.currentSrc}, v.duration:${v.duration}, v.ended:${v.ended}, v.error:`,
+	v.error, `, v.networkState:${v.networkState}`);
+
+    try {
+	var plain = await decrypt_uint8array(hush_key, ciphertext);
+    } catch (err) {
       console.log('decryption failed (hush_play_video): ', err, ciphertext, feed);
       return;
     }
 
-  const videl = feed.getElementsByTagName('video')[0]
-    videl.buf.appendBuffer(plain);
-	  videl.play();
+    await hush_append_buffer(v, plain);
 }
 
 function
@@ -93,16 +135,14 @@ hush_camera_record()
       //var plain = await decrypt_uint8array(hush_key, ciphertext);
       //console.log('plain', plain);
       if (hush_camera_loopback) {
-	  //console.log(hush_camera_loopback);
-	  //const preview = hush_camera_loopback.getElementsByTagName('video')[0]
-    //preview.buf.appendBuffer(plain);
-	  //preview.play();
-      const userEl = getUserEl("mine");
-//  userEl.chan_video_high = highVideoChannel;
-      //const feed = hush_new_feed(userEl, "video_high");
-      const feed = hush_new_feed($('#myface'), "video_high");
-
-      hush_play_video(ciphertext, feed)
+	  /*
+	   * TODO this is a little bit wasteful since we are decrypting
+	   * our own payload, but this way we can check that our encryption
+	   * worked as expected.
+	   */
+	  const userEl = getUserEl("mine");
+	  const feed = hush_new_feed($('#myface'), "video_high")
+	  hush_play_video(ciphertext, feed)
       }
   }
   async function camera_works(s){
@@ -113,7 +153,7 @@ hush_camera_record()
 
       hush_camera_handle = new MediaRecorder(s);
       hush_camera_handle.ondataavailable = please_encrypt;
-      hush_camera_handle.start(1000);
+      hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
   var m = navigator.getUserMedia(
       {video:true},
@@ -159,27 +199,50 @@ hush_new_feed(where, id)
       let title = document.createElement('h1');
       title.textContent = "video_high: " + id;
       div.appendChild(title);
-      const vid = document.createElement('video');
-      vid.setAttribute('id', id);
-      div.appendChild(vid);
+	const vid = document.createElement('video');
+	vid.setAttribute('id', id);
+	div.appendChild(vid);
 
-     let m_source = new MediaSource();
-      m_source.addEventListener(
-    'sourceopen',
-    e => {
-        console.log('m_source:sourceopen', e);
-        /* TODO hardcoding the codec here sucks */
-        vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
-    });
-      vid.src = URL.createObjectURL(m_source);
-      // FIXME: readonly property vid.buffered = false; /* TODO */
+	function set_source(video) {
+	    let m_source = new MediaSource();
+	    m_source.addEventListener(
+		'sourceopen',
+		e => {
+		    console.log('m_source:sourceopen', e);
+		    /* TODO hardcoding the codec here sucks */
+		    vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
+		});
+	    m_source.addEventListener(
+		'sourceended', e => {
+		    console.log('sourceended:', m_source, e);
+		});
+	    video.src = URL.createObjectURL(m_source);
+	}
 
-      where.appendChild(div);
+	/*
+	 * When it errors we try again:
+	 */
+	vid.addEventListener(
+	    'error',
+	    (e) => {
+		console.log('new video source because video erred', vid);
+		set_source(vid);
+	    });
+	// FIXME: readonly property vid.buffered = false; /* TODO */
 
-    //vid.play();
-    vid.autoplay = true;
-    vid.controls = true;
-      console.log('this should be the feed div (id="div_video_high")', div)
+	/*
+	 * Trigger error to make sure we have a source ready:
+	 */
+	set_source(vid);
+	vid.play();
+
+	where.appendChild(div);
+
+	try { vid.play(); }
+	catch(e){ console.log('vid.play() did not fly', vid); }
+	vid.autoplay = true;
+	vid.controls = true;
+	console.log('this should be the feed div (id="div_video_high")', div)
       return div;
     }
 }
