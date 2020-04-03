@@ -14,12 +14,28 @@ hush_read_key()
   //  }
 }
 
+var gctx;
+
 /*
  * Callback handler for the hush_newroom button
  */
 async function
 hush_newroom()
 {
+    
+    let ctx = {
+      user_id: new String(Math.floor(Math.random() * (1000000001))),
+      session: null,
+      publisher: null,
+      subscribers: {},
+      videoChannel: null,
+      messages: [],
+      roomId: "42",
+
+    };
+    gctx = ctx;
+    janus_connect(ctx, "ws://localhost:8188");
+
     console.log('new room key');
     await new_key();
     hush_read_key();
@@ -34,6 +50,10 @@ hush_camera_record()
   async function please_encrypt(blob_event){
       console.log('xx', blob_event, await blob_event.data.arrayBuffer());
       var ciphertext = await encrypt_blob(hush_key, blob_event.data);
+      try {
+        gctx.videoChannel.send(ciphertext);
+      } catch (err) { console.log('send failed: ', err) }
+      
       console.log('should send', ciphertext);
       var plain = await decrypt_uint8array(hush_key, ciphertext);
       console.log('plain', plain);

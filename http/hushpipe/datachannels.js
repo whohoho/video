@@ -1,21 +1,9 @@
-const params = new URLSearchParams(location.search.slice(1));
-
-//var conn;
-
-var USER_ID = new String(Math.floor(Math.random() * (1000000001)));
-//var USER_ID = "23";
-
-let messages = [];
-
-const roomId = params.get("room") != null ? params.get("room") : "42";
-
 const DATACHAN_CONF = {
   ordered: false, 
   maxRetransmits: 0,
 //  maxPacketLifeTime: null,
   protocol: "",
 //  negotiated: false,
-
 };
 
 const PEER_CONNECTION_CONFIG = {
@@ -24,18 +12,6 @@ const PEER_CONNECTION_CONFIG = {
     { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
   ]
 };
-
-// global helper for interactive use
-var c = {
-  session: null,
-  publisher: null,
-  subscribers: {}
-};
-
-const status = document.getElementById("status");
-function showStatus(message) {
-  status.textContent = message;
-}
 
 function isError(signal) {
   var isPluginError =
@@ -50,39 +26,45 @@ function receiveMsg(session,ev) {
   //console.log(ev.data);
 }
 
-function connect(server) {
-  document.getElementById("janusServer").value = server;
-  showStatus(`Connecting to ${server}...`);
+function janus_connect(ctx, server) {
+  console.log("1 ctx in janus_connect: ", ctx);
+
   var ws = new WebSocket(server, "janus-protocol");
-  var session = c.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
+  var session = ctx.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
   session.isError = isError;
   ws.addEventListener("message", ev => receiveMsg(session,ev));
-  ws.addEventListener("open", _ => {
-    session.create()
-      .then(_ => attachPublisher(session))
-      .then(x => { c.publisher = x; }, err => console.error("Error attaching publisher: ", err));
+
+
+  ws.addEventListener("open", (socket) => {
+
+    ctx.session.create()
+    .then( function pub (something) {
+        console.log("ctx in janus_connect: ", ctx);
+        attachPublisher(ctx);
+    }).then(x => { ctx.publisher = x; }, err => console.error("Error attaching publisher: ", err));
+
+    /*
+      .then(ctx => attachPublisher(ctx, session))
+      .then(x => { publisher = x; }, err => console.error("Error attaching publisher: ", err));
+      */
   });
 }
-function addUser(session, userId) {
+function addUser(ctx, userId) {
+   console.log("ctx in addUser: ", ctx);
+
   console.info("Adding user " + userId + ".");
-  return attachSubscriber(session, userId)
-    .then(x => { c.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
+  return attachSubscriber(ctx, userId)
+    .then(x =>   { ctx.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
 }
 
-function removeUser(session, userId) {
+function removeUser(ctx, userId) {
   console.info("Removing user " + userId + ".");
-  document.querySelectorAll('.media-' + userId).forEach(el => el.remove());
   var subscriber = c.subscribers[userId];
   if (subscriber != null) {
     subscriber.handle.detach();
     subscriber.conn.close();
     delete c.subscribers[userId];
   }
-}
-
-const messageCount = document.getElementById("messageCount");
-function updateMessageCount() {
-  messageCount.textContent = messages.length;
 }
 
 let firstMessageTime;
@@ -113,17 +95,6 @@ function storeVideoMessage(ev, from) {
   console.log('videomessage from: ' + from )
   console.log(ev.data);
 }
-
-
-document.getElementById("saveButton").addEventListener("click", function saveToMessagesFile() {
-  const file = new File([JSON.stringify(messages)], "messages.json", {type: "text/json"});
-  saveAs(file);
-});
-
-document.getElementById("clearButton").addEventListener("click", function clearMessages() {
-  messages = [];
-  updateMessageCount();
-});
 
 function waitForEvent(name, handle) {
   return new Promise(resolve => handle.on(name, resolve));
@@ -170,11 +141,15 @@ function associate(conn, handle, debugmsg) {
   });
 }
 
-function sendData(channel, msg) {
+//function broadcast_video(msg) {
+ //}
+
+
+function sendData(ctx, channel, msg) {
   let obj = {
     "message": msg,
     "timestamp": new Date(),
-    "from": USER_ID
+    "from": ctx.user_id
   }
   if (channel.readyState == 'open') {
     console.log('sending: ');
@@ -186,29 +161,44 @@ function sendData(channel, msg) {
   }
 }
 
+function handleIncomingVideo (msg) {
+  console.log('incoming video packet', msg.srcElement.label , msg.data);
+
+
+}
+
 function newDataChannel ( id ) {
   const channel = janusconn.createDataChannel(id , DATACHAN_CONF );
-  channel.addEventListener("message", storeUnreliableMessage);
- // videoChannel.addEventListener("message", storeUnreliableMessage);
-  channel.addEventListener("onopen", sendData(channel, "chan is now open" + id));
-  setInterval(sendData, 1000, channel, "every second a messae on " + id);
+  if (id.startsWith("video")) {
+     channel.addEventListener("message", handleIncomingVideo);
+  } else {
+    channel.addEventListener("message", storeUnreliableMessage);
+  }
+  //channel.addEventListener("onopen", sendData(channel, "chan is now open" + id));
+//  setInterval(sendData, 1000,ctx, channel, "every second a messae on " + id);
   return channel
 }
 
-async function attachPublisher(session) {
-  console.info("Attaching publisher for session: ", session);
- // don't need a new one
+function showStatus (msg) {
+  console.log(msg);
+}
+
+async function attachPublisher(ctx) {
+  console.info("Attaching publisher for session: ", ctx.session);
+ 
+  console.log('room: ', ctx.roomId, 'ctx: ', ctx);
+
   janusconn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
-  var handle = new Minijanus.JanusPluginHandle(session);
+  var handle = new Minijanus.JanusPluginHandle(ctx.session);
   associate(janusconn, handle, "attach publisher");
   
   // Handle all of the join and leave events.
   handle.on("event", ev => {
     var data = ev.plugindata.data;
-    if (data.event == "join" && data.room_id == roomId) {
-      this.addUser(session, data.user_id);
-    } else if (data.event == "leave" && data.room_id == roomId) {
-      this.removeUser(session, data.user_id);
+    if (data.event == "join" && data.room_id == ctx.roomId) {
+      this.addUser(ctx, data.user_id);
+    } else if (data.event == "leave" && data.room_id == ctx.roomId) {
+      this.removeUser(ctx, data.user_id);
     } else if (data.event == "data") {
       console.log(data);
     }
@@ -218,37 +208,48 @@ async function attachPublisher(session) {
   showStatus(`Connecting WebRTC...`);
   
   // this is the channel we gonna publish video on
-  const videoChannel = newDataChannel("video");
+  ctx.videoChannel = newDataChannel("video");
 
   await waitForEvent("webrtcup", handle);
-  showStatus(`Joining room ${roomId}...`);
-  const msg = {
-    kind: "join",
-    room_id: roomId,
-    user_id: USER_ID,
-    subscribe: { notifications: true, data: true }
-  }
-  console.log("this is the msg:: ", msg);
-  const reply = await handle.sendMessage(msg);
-  showStatus(`Subscribing to others in room ${roomId}`);
-  var occupants = reply.plugindata.data.response.users[roomId] || [];
-  await Promise.all(occupants.map(userId => addUser(session, userId)));
+  showStatus(`Joining room ${ctx.roomId}...`);
+
+  console.log("user: ", ctx.user_id, "room: ", ctx.roomId);
+ 
+  //try {
+    const msg ={
+      kind: "join",
+      room_id: ctx.roomId,
+      user_id: ctx.user_id,
+      subscribe: { notifications: true, data: true }
+    }
+    console.log(msg);
+    const reply = await handle.sendMessage(msg);
+  // } catch(err) {
+  //  console.log("err in reply: ", err); 
+  //}
+
+
+  showStatus(`Subscribing to others in room ${ctx.roomId}`);
+  var occupants = reply.plugindata.data.response.users[ctx.roomId] || [];
+  await Promise.all(occupants.map(userId => addUser(ctx, userId)));
 
   // returns handle + rtcpeerconn + videoChannel to send on
-  return { handle, janusconn, videoChannel};
+  return  { handle, janusconn, videoChannel};
 }
 
-function attachSubscriber(session, otherId) {
-  console.info("Attaching subscriber to " + otherId + " for session: ", session);
+function attachSubscriber(ctx, otherId) {
+  console.info("Attaching subscriber to " + otherId + " for session: ", ctx.session);
   var conn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
-  var handle = new Minijanus.JanusPluginHandle(session);
+  var handle = new Minijanus.JanusPluginHandle(ctx.session);
   addExisting(conn, handle, "attach subscriber: " + otherId);
+
+  // this is 1 of the channels to receive video on 
   const otherVideoChannel = newDataChannel("video" + otherId);
 
   return handle.attach("janus.plugin.sfu")
-    .then(_ => handle.sendMessage({ kind: "join", room_id: roomId, user_id: USER_ID, subscribe: { media: otherId }}))
+    .then(_ => handle.sendMessage({ kind: "join", room_id: ctx.roomId, user_id: ctx.user_id, subscribe: { media: otherId }}))
     .then(_ => waitForEvent("webrtcup", handle))
     .then(_ => { return { handle: handle, conn: conn }; });
 }
 
-connect(params.get("janus") || `ws://localhost:8188`);
+
