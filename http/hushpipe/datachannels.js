@@ -208,7 +208,7 @@ async function attachPublisher(ctx) {
   showStatus(`Connecting WebRTC...`);
   
   // this is the channel we gonna publish video on
-  ctx.videoChannel = newDataChannel("video");
+  ctx.videoChannel = newDataChannel("video" + ctx.user_id);
 
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${ctx.roomId}...`);
