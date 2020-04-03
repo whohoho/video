@@ -1,6 +1,8 @@
 let $ = a => document.querySelector(a);
 
-let hush_key;
+let hush_key; /* Key used to encrypt/decrypt */
+let hush_camera_handle; /* Handle to MediaRecorder of our camera */
+let hush_camera_loopback; /* <video> element display our own camera */
 
 async function
 hush_read_key()
@@ -41,12 +43,9 @@ hush_newroom()
     hush_read_key();
 }
 
-let hush_camera_handle;
-
 function
 hush_camera_record()
 {
-  let svt;
   async function please_encrypt(blob_event){
       console.log('xx', blob_event, await blob_event.data.arrayBuffer());
       var ciphertext = await encrypt_blob(hush_key, blob_event.data);
@@ -57,10 +56,18 @@ hush_camera_record()
       console.log('should send', ciphertext);
       var plain = await decrypt_uint8array(hush_key, ciphertext);
       console.log('plain', plain);
+      if (hush_camera_loopback) {
+	  console.log(hush_camera_loopback.buf);
+	  hush_camera_loopback.buf.appendBuffer(plain);
+	  hush_camera_loopback.play();
+      }
   }
   async function camera_works(s){
       console.log('s',s);
-      svt = s.getVideoTracks()[0];
+      //let svt = s.getVideoTracks()[0];
+
+      hush_camera_loopback = hush_new_feed($('#myface'));
+
       hush_camera_handle = new MediaRecorder(s);
       hush_camera_handle.ondataavailable = please_encrypt;
       hush_camera_handle.start(1000);
@@ -75,9 +82,35 @@ hush_camera_record()
 function
 hush_camera_stop()
 {
-    hush_camera_handle
-	&& hush_camera_handle.state != 'inactive'
-	&& hush_camera_handle.stop();
+    try {
+	hush_camera_handle.stop();
+    } catch (e) {}
+    const myface = $('#myface');
+    while (myface.firstChild) {
+	myface.removeChild(myface.lastChild);
+    }
+    hush_camera_loopback = null;
+}
+
+/*
+ * Call with $('#friends') or $('#myface')
+ */
+function
+hush_new_feed(where)
+{
+    const vid = document.createElement('video');
+    let m_source = new MediaSource();
+    m_source.addEventListener(
+	'sourceopen',
+	e => {
+	    console.log(e);
+	    vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
+	    //buf.appendBuffer(plain);
+	});
+    vid.src = URL.createObjectURL(m_source);
+    vid.buffered = false; /* TODO */
+    where.appendChild(vid);
+    return vid;
 }
 
 async function
