@@ -94,7 +94,7 @@ crypto_derive_from_master_key(raw_master_key)
 	master_key,
 	GCM_PARAMS,
 	true, /* exportable */
-	['encrypt']
+	['encrypt','decrypt']
     );
 
     return { e2e: e2e_key,
@@ -123,12 +123,14 @@ get_key_from_url()
     let key_as_arr = new Uint8Array(key_as_string.length);
     key_as_arr = key_as_arr.map((_, idx) => key_as_string.charCodeAt(idx));
 
+    console.log(key_as_arr);
+
     return crypto.subtle.importKey(
 	'raw',
 	key_as_arr,
 	GCM_PARAMS,
-	false, /* extractable: Not marked available for export */
-	['encrypt','decrypt','deriveKey'] /* usages: Context in which key can be used */
+	true, /* extractable: Not marked available for export */
+	['encrypt','decrypt'], /* usages: Context in which key can be used */
     );
 }
 
@@ -168,6 +170,17 @@ encrypt_blob(key, blob)
     return ret;
 }
 
+async function
+decrypt_uint8array(key, buf)
+{
+    const iv = buf.subarray(-IV_BYTES);
+    const data = buf.subarray(0, -IV_BYTES);
+    return crypto.subtle.decrypt(
+	{...GCM_PARAMS,
+	 'iv': iv
+	}, key, data);
+}
+
 /*
  * Seems to throw a DOMException when key was wrong
  */
@@ -175,12 +188,7 @@ async function
 decrypt_blob(key, blob)
 {
     const buf = new Uint8Array(await blob.arrayBuffer());
-    const iv = buf.subarray(-IV_BYTES);
-    const data = buf.subarray(0, -IV_BYTES);
-    return crypto.subtle.decrypt(
-	{...GCM_PARAMS,
-	 'iv': iv
-	}, key, data);
+    return decrypt_uint8array(key, buf);
 }
 
 /*

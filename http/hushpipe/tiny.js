@@ -194,17 +194,17 @@ async function attachPublisher(session) {
 
   const reliableChannel = conn.createDataChannel("reliable", { ordered: true });
   reliableChannel.addEventListener("message", storeReliableMessage);
-  setInterval(sendData, 10000, reliableChannel, "every 10 seconds a message on the reliable channel");
+  setInterval(sendData, 100000, reliableChannel, "every 10 seconds a message on the reliable channel");
 
   const unreliableChannel = conn.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
   unreliableChannel.addEventListener("message", storeUnreliableMessage);
-  setInterval(sendData, 10000, unreliableChannel, "every 10 seconds a message on the unreliable channel");
+  setInterval(sendData, 100000, unreliableChannel, "every 10 seconds a message on the unreliable channel");
 
 
   const videoChannel = conn.createDataChannel("video" + USER_ID, { ordered: false, maxRetransmits: 0 });
   videoChannel.addEventListener("message", storeVideoMessage);
   videoChannel.addEventListener("onopen", sendData(videoChannel, "chan is now open"));
-  setInterval(sendData, 10000, videoChannel, "every 10 seconds a messae");
+  setInterval(sendData, 100000, videoChannel, "every 10 seconds a messae");
 
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${roomId}...`);
