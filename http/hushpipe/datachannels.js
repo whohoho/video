@@ -20,6 +20,7 @@ const PEER_CONNECTION_CONFIG = {
   ]
 };
 
+// deal with errors from janus
 function isError(signal) {
   var isPluginError =
       signal.plugindata &&
@@ -28,19 +29,19 @@ function isError(signal) {
   return isPluginError || Minijanus.JanusSession.prototype.isError(signal);
 }
 
+// deal with messages from janus
 function receiveMsg(session,ev) {
   session.receive(JSON.parse(ev.data))
-  //console.log(ev.data);
 }
 
+// connect to janus (the SFU server)
 function janus_connect(ctx, server) {
-  console.log("1 ctx in janus_connect: ", ctx);
+//  console.log("1 ctx in janus_connect: ", ctx);
 
   var ws = new WebSocket(server, "janus-protocol");
   var session = ctx.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
   session.isError = isError;
   ws.addEventListener("message", ev => receiveMsg(session,ev));
-
 
   ws.addEventListener("open", (socket) => {
 
@@ -49,14 +50,10 @@ function janus_connect(ctx, server) {
         console.log("ctx in janus_connect: ", ctx);
         attachPublisher(ctx);
     }).then(x => { ctx.publisher = x; }, err => console.error("Error attaching publisher: ", err));
-
-    /*
-      .then(ctx => attachPublisher(ctx, session))
-      .then(x => { publisher = x; }, err => console.error("Error attaching publisher: ", err));
-      */
   });
 }
 
+// create a DOM element for a user in the room, all state of that user is stored here
 function getUserEl(userId) {
   const elid = "hushpipe_user_" + userId;
   const users = document.getElementById('friends');
@@ -64,14 +61,13 @@ function getUserEl(userId) {
   if (document.getElementById(elid)) {
     // user is already known
     return document.getElementById(elid);
-  } else {
-    // user not seen before
+  } else {  // user not seen before
     const user = document.createElement('div');
     user.janus_user_id = userId;
     user.setAttribute('id', elid);
     user.setAttribute('class', 'friend_div');
     users.appendChild(user);
-    let title = document.createElement('h1');
+    let title = document.createElement('h3');
     title.textContent = userId;
     user.appendChild(title);
     return user;
@@ -81,7 +77,7 @@ function getUserEl(userId) {
 
 
 function addUser(ctx, userId) {
-  console.log("ctx in addUser: ", ctx);
+  //console.log("ctx in addUser: ", ctx);
 
   console.info("Adding user " + userId + ".");
   const elem = getUserEl(userId);
@@ -93,8 +89,8 @@ function removeUser(ctx, userId) {
   console.info("Removing user " + userId + ".");
 
   // for debugging
-  const users = document.getElementById('friends');
-  console.log(users);
+  //const users = document.getElementById('friends');
+  //console.log('user removed, users: ', users);
   if (! document.getElementById("hushpipe_user_" + userId)) {
     throw "user to remove is not there" ;
   }
@@ -102,7 +98,7 @@ function removeUser(ctx, userId) {
   const userelem = getUserEl(userId);
   userelem.parentNode.removeChild(userelem);
 
-
+  // FIXME: get rid of ctx.subscribers
   var subscriber = ctx.subscribers[userId];
   if (subscriber != null) {
     subscriber.handle.detach();
@@ -111,48 +107,16 @@ function removeUser(ctx, userId) {
   }
 }
 
-let firstMessageTime;
-
-function storeMessage(data, reliable) {
-  console.log(data);
-  if (!firstMessageTime) {
-    firstMessageTime = performance.now();
-  }
-  messages.push({
-    time: performance.now() - firstMessageTime,
-    reliable,
-//    message: JSON.parse(data)
-    message: data,
-  });
-  //updateMessageCount();
-}
-
-function storeReliableMessage(ev) {
-  storeMessage(ev.data, true);
-}
-
-function storeUnreliableMessage(ev) {
-  storeMessage(ev.data, false);
-}
-
-function storeVideoMessage(ev, from) {
-  storeMessage(ev.data, false);
-  console.log('videomessage from: ' + from )
-  console.log(ev.data);
-}
-
 function waitForEvent(name, handle) {
   return new Promise(resolve => handle.on(name, resolve));
 }
 
 function addExisting(conn, handle, debugmsg) {
- // handle is plugin handle, conn is peerconnection 
 conn.createOffer(
     {
       media: { addData: true },
         success: function(jsep) {
             Janus.debug(jsep);
-            //echotest.send({message: {audio: true, video: true}, "jsep": jsep});
         },
         error: function(error) {
             console.log("renegotiate error " + JSON.stringify(error));
@@ -186,11 +150,8 @@ function associate(conn, handle, debugmsg) {
   });
 }
 
-//function broadcast_video(msg) {
- //}
 
-
-function sendData(ctx, channel, msg) {
+function sendControlMessage(ctx, channel, msg) {
   let obj = {
     "message": msg,
     "timestamp": new Date(),
@@ -206,23 +167,9 @@ function sendData(ctx, channel, msg) {
   }
 }
 
-function handleIncomingVideo (msg) {
-//  console.log('incoming video packet', msg.srcElement.label , msg.data);
-return msg;
-
-}
-
+// creates a new unreliable channel
 function newDataChannel ( id ) {
   const channel = janusconn.createDataChannel(id , DATACHAN_CONF );
-  /*
-  if (id.startsWith("huhuh")) {
-     channel.addEventListener("message", handleIncomingVideo);
-  } else {
-    channel.addEventListener("message", storeUnreliableMessage);
-  }
-  */
-  //channel.addEventListener("onopen", sendData(channel, "chan is now open" + id));
-//  setInterval(sendData, 1000,ctx, channel, "every second a messae on " + id);
   return channel
 }
 
@@ -261,7 +208,10 @@ async function attachPublisher(ctx) {
 
   await handle.attach("janus.plugin.sfu")
   showStatus(`Connecting WebRTC...`);
-  
+ 
+  // this is the channel we gonna publish video on
+  ctx.controlChannel = newDataChannel("hushpipe_controlchannel");
+ 
   // this is the channel we gonna publish video on
   ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
