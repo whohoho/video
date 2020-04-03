@@ -4,14 +4,25 @@
     <meta charset="utf-8">
     <title>Tiny test page</title>
     <style>body { font-family: sans-serif; }</style>
+
+    <!-- Adapter.js from Google, try to fix old/broken browsers -->
+    <script src="adapter.js"></script>
+
+    <!-- Janus client library -->
+    <script src="bundle.js"></script>
+
+    <!-- HushPipe crypto library -->
     <script src="crypto.js"></script>
+
+    <!-- HushPipe business logic -->
     <script src="hushpipe.js"></script>
+
   </head>
   <body>
     <p>
       <fieldset>
 	<legend>Hushpipe controls</legend>
-	<button id="hush_newroom" onclick="new_key();">New room + key</button>
+	<button id="hush_newroom">New room + key</button>
 	<button id="hush_getkey">Clear</button>
 	<div>
 	  <label>Room key: </label><span id="hush_room_key_label"></span>
@@ -21,12 +32,15 @@
 
 
     <form method="GET">
-      <label>Server: <input id="janusServer" name="janus"/></label><input type="submit" value="Go" /></form>
+      <label>JanusServer:
+	<input id="janusServer" name="janus"/></label>
+      <input type="submit" value="Go" /></form>
     <p><label>Status: </label><span id="status"></span></p>
 
     <p>
       <button id="micButton">Share microphone</button>
       <button id="screenButton">Share screen</button>
+      <button id="cameraButton">Share camera</button>
     </p>
 
     <fieldset>
@@ -36,8 +50,13 @@
       <button id="clearButton">Clear</button>
     </fieldset>
 
-    <script crossorigin src="adapter.js"></script>
-    <script crossorigin src="bundle.js"></script>
+    <!-- Below: Scripts that should run after <body> has been parsed -->
+
+    <!-- Demo code file: -->
     <script src="tiny.js"></script>
+    <script>
+      hush_onload();
+    </script>
+
   </body>
 </html>

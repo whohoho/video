@@ -31,6 +31,12 @@ const GCM_PARAMS = {
 
 const IV_BYTES = 16; /* Length of the AES-256-GCM initialization vector */
 
+const SIGN_PARAMS = {
+    name: 'ECDSA',
+    hash: 'SHA-256',
+    namedCurve: 'P-256',
+}
+
 /*
  * Generate a new key, and replace the # in the URL with
  * the Base64-encoded representation.
@@ -50,6 +56,49 @@ new_key()
     ;
     document.location.hash = wtf_javascript;
     return key;
+}
+
+async function
+crypto_derive_from_master_key(raw_master_key)
+{
+
+    let text = new TextEncoder(); /* TODO how do we guarantee this is utf-8? */
+    const hkdfparams = {
+	name: 'HKDF',
+	hash: 'SHA-384',
+	salt: text.encode('HushPipeHKDF_1'),
+    };
+
+    const master_key = await crypto.subtle.importKey(
+	'raw',
+	raw_master_key, /* ArrayBuffer*/
+	{name:'HKDF', hash:'SHA-384'},
+	false, ['deriveKey', 'deriveBits']);
+
+    const e2e_key = await crypto.subtle.deriveKey(
+	{ ...hkdfparams,
+	  info: text.encode('e2e-key'), /* HKDF context */
+	  label: 'e2e-key',
+	},
+	master_key,
+	GCM_PARAMS,
+	true, /* exportable */
+	['encrypt', 'decrypt']
+    );
+
+    const room_key = await crypto.subtle.deriveKey(
+	{ ...hkdfparams,
+	  info: text.encode('room-name'), /* HKDF context */
+	  label: 'room-name',
+	},
+	master_key,
+	GCM_PARAMS,
+	true, /* exportable */
+	['encrypt']
+    );
+
+    return { e2e: e2e_key,
+	     room: room_key, };
 }
 
 /*
@@ -79,7 +128,7 @@ get_key_from_url()
 	key_as_arr,
 	GCM_PARAMS,
 	false, /* extractable: Not marked available for export */
-	['encrypt','decrypt'] /* usages: Context in which key can be used */
+	['encrypt','decrypt','deriveKey'] /* usages: Context in which key can be used */
     );
 }
 
