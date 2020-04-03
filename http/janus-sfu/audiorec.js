@@ -26,7 +26,7 @@ const VIDEO_RECOPT = { audioBitsPerSecond :  256000,
 function makeMediaStream(inputstream, recopts) {
 	var recorder;
  
-  recorder = RecordRTC(inputstream, recopts);
+  recorder = new MediaRecorder(inputstream, recopts);
   console.log("new mediastream created");
 
   function la (event){
@@ -47,7 +47,7 @@ function makeMediaStream(inputstream, recopts) {
 
       recorder.onclose = () => controller.close();
       recorder.onerror = () => controller.error(new Error("audiorecorder error"));
-      recorder.startRecording();
+      recorder.start();
 //      console.log(recorder.ondataAvailable);
       console.log(recorder.state);
 //      console.log(recorder.requestData());
