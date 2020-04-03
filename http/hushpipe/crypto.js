@@ -3,21 +3,29 @@
  *
  * Binds the following names (all functions are async):
  *
- * - new_key() -> key:Uint8Array
+ * - crypto_new_master_key() -> key:Uint8Array
  *   Generate a new random key and put it in the browser location hash.
  *
- * - get_key_from_url() -> key:CryptoKey
- *   Parses current browser location hash.
+ * - crypto_derive_from_master_key(master_key:Uint8Array)
+ *   -> { e2e: CryptoKey, room: string }
+ *   Uses the master key to derives an AES-GCM key for end-to-end-encrypted
+ *   communication, and a room name to be provided to the relay server.
+ *
+ * - get_master_key_from_url() -> key:Uint8Array
+ *   Parses current browser location hash. Raises if length is wrong.
  *
  * - encrypt_blob(key:CryptoKey, plaintext:Blob) -> ciphertext:Uint8Array
- *   Encrypts the plaintext and returns ciphertext || IV. (and GCM tag somewhere)
+ *   Encrypts the plaintext and returns
+ *     ciphertext || IV  (and GCM tag somewhere)
  *
- * - decrypt_blob(key:CryptoKey, ciphertext:Blob) -> plaintext:ArrayBuffer
+ * - decrypt_uint8array(key:CryptoKey, ciphertext:Uint8Array
+ *   -> plaintext:ArrayBuffer
  *   Decrypts ciphertext, taking IV from last IV_BYTES substring of ciphertext;
  *   checking GCM tag and throws DOMException if something goes wrong.
  *
  * - GCM_PARAMS: Constant dict for AES-256-GCM boilerplate.
  * - IV_BYTES: Constant int for denoting IV length in bytes.
+ * - MASTER_KEY_BYTES: Constant int denoting expected length of master key.
  */
 
 const GCM_PARAMS = {
@@ -31,6 +39,9 @@ const GCM_PARAMS = {
 
 const IV_BYTES = 16; /* Length of the AES-256-GCM initialization vector */
 
+const MASTER_KEY_BYTES = 32; /* Length of the raw master key */
+
+/* TODO currently unused, but should be used for participants */
 const SIGN_PARAMS = {
     name: 'ECDSA',
     hash: 'SHA-256',
@@ -38,26 +49,32 @@ const SIGN_PARAMS = {
 }
 
 /*
+ * Internal function for making url-safe base64
+ */
+function
+_crypto_uint8arr_to_base64(arr)
+{
+    return btoa(String.fromCharCode(...arr))
+	.replace(/\+/g, '@')
+	.replace(/=/g, '_');
+}
+
+/*
  * Generate a new key, and replace the # in the URL with
  * the Base64-encoded representation.
  */
 async function
-new_key()
+crypto_new_master_key()
 {
-    /* 2nd arg 'true': marked available for export */
-    const key = await crypto.subtle.generateKey(
-	GCM_PARAMS, true,
-	['encrypt', 'decrypt']
-    );
-    const k = new Uint8Array(await crypto.subtle.exportKey('raw', key));
-    const wtf_javascript = btoa(String.fromCharCode(...k))
-	  .replace(/\+/g, '@')
-	  .replace(/=/g, '_')
-    ;
-    document.location.hash = wtf_javascript;
-    return key;
+    const k = await crypto.getRandomValues(
+	new Uint8Array(MASTER_KEY_BYTES));
+    document.location.hash = _crypto_uint8arr_to_base64(k);
+    return k;
 }
 
+/*
+ *
+ */
 async function
 crypto_derive_from_master_key(raw_master_key)
 {
@@ -82,7 +99,7 @@ crypto_derive_from_master_key(raw_master_key)
 	},
 	master_key,
 	GCM_PARAMS,
-	true, /* exportable */
+	false, /* exportable */
 	['encrypt', 'decrypt']
     );
 
@@ -96,16 +113,18 @@ crypto_derive_from_master_key(raw_master_key)
 	true, /* exportable */
 	['encrypt','decrypt']
     );
+    const room_raw = await crypto.subtle.exportKey('raw', room_key);
+    const room_name = _crypto_uint8arr_to_base64(new Uint8Array(room_raw));
 
     return { e2e: e2e_key,
-	     room: room_key, };
+	     room: room_name, };
 }
 
 /*
  * Decode base64-encoded from URL after # and unpack it
  */
 async function
-get_key_from_url()
+get_master_key_from_url()
 {
     /*
      * Get the stuff after #; fixup base64; base64-decode
@@ -123,15 +142,11 @@ get_key_from_url()
     let key_as_arr = new Uint8Array(key_as_string.length);
     key_as_arr = key_as_arr.map((_, idx) => key_as_string.charCodeAt(idx));
 
-    console.log(key_as_arr);
+    if (MASTER_KEY_BYTES != key_as_arr.length) {
+	throw "invalid master key";
+    }
 
-    return crypto.subtle.importKey(
-	'raw',
-	key_as_arr,
-	GCM_PARAMS,
-	true, /* extractable: Not marked available for export */
-	['encrypt','decrypt'], /* usages: Context in which key can be used */
-    );
+    return key_as_arr;
 }
 
 /*
@@ -151,6 +166,11 @@ encrypt_blob(key, blob)
 	{...GCM_PARAMS,
 	 'iv': iv
 	}, key, plaintext));
+    /* TODO Things that could be put in AdditionalData:
+     * - timecode
+     * - codec/mimetype
+     * - public key of user
+     */
 
     /*
      * There's a proposed api for more efficient remalloc() we can use
@@ -170,6 +190,9 @@ encrypt_blob(key, blob)
     return ret;
 }
 
+/*
+ * Seems to throw a DOMException when key was wrong
+ */
 async function
 decrypt_uint8array(key, buf)
 {
@@ -180,25 +203,3 @@ decrypt_uint8array(key, buf)
 	 'iv': iv
 	}, key, data);
 }
-
-/*
- * Seems to throw a DOMException when key was wrong
- */
-async function
-decrypt_blob(key, blob)
-{
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    return decrypt_uint8array(key, buf);
-}
-
-/*
- * Test in browser by copy-pasting all this:
- */
-/*
-var o_k = await new_key();
-var o_b = new Blob(['a','c','a','b']);
-var enc = await encrypt_blob(o_k, o_b);
-var n_k = await get_key_from_url();
-var dec = await decrypt_blob(n_k, new Blob([new Uint8Array(enc)]));
-String.fromCharCode(...new Uint8Array(dec));
-*/

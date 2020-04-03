@@ -1,6 +1,7 @@
 let $ = a => document.querySelector(a);
 
 let hush_key; /* Key used to encrypt/decrypt */
+let hush_room; /* Room ID derived from master key */
 let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
 
@@ -8,15 +9,20 @@ async function
 hush_read_key()
 {
 //    try {
-    const key = await get_key_from_url();
-    hush_key = key;
-    $('#hush_room_key_label').innerText = document.location.hash;
+    const master_key = await get_master_key_from_url();
+    const keys = await crypto_derive_from_master_key(master_key);
+    console.log('keys',keys);
+    hush_key = keys.e2e;
+    hush_room = keys.room;
+    $('#hush_room_key_label').innerText =
+	'\nmaster key: ' + document.location.hash
+	+ '\n\nroom name: ' + keys.room;
   //  } catch (e) {
 //	console.log('error reading room key', e);
   //  }
 }
 
-var gctx;
+let gctx;
 
 /*
  * Callback handler for the hush_newroom button
@@ -38,8 +44,9 @@ hush_newroom()
     gctx = ctx;
     janus_connect(ctx, "ws://localhost:8188");
 
+    console.log('new master key');
+    await crypto_new_master_key();
     console.log('new room key');
-    await new_key();
     hush_read_key();
 }
 
@@ -104,8 +111,8 @@ hush_new_feed(where)
 	'sourceopen',
 	e => {
 	    console.log(e);
+	    /* TODO hardcoding the codec here sucks */
 	    vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
-	    //buf.appendBuffer(plain);
 	});
     vid.src = URL.createObjectURL(m_source);
     vid.buffered = false; /* TODO */
