@@ -1,3 +1,9 @@
+'use strict';
+
+//FIXME
+var janusconn;
+var messages = [];
+
 const DATACHAN_CONF = {
   ordered: false, 
   maxRetransmits: 0,
@@ -50,22 +56,34 @@ function janus_connect(ctx, server) {
       */
   });
 }
+
+function getUserEl(userId) {
+  const elid = "hushpipe_user_" + userId;
+  const users = document.getElementById('friends');
+  console.log(users);
+  if (document.getElementById(elid)) {
+    // user is already known
+    return document.getElementById(elid);
+  } else {
+    // user not seen before
+    const user = document.createElement('div');
+    user.janus_user_id = userId;
+    user.setAttribute('id', elid);
+    users.appendChild(user);
+    let title = document.createElement('h1');
+    title.textContent = userId;
+    user.appendChild(title);
+    return user;
+  }
+
+}
+
+
 function addUser(ctx, userId) {
   console.log("ctx in addUser: ", ctx);
 
-  const users = document.getElementById('friends');
-  console.log(users);
-  if (document.getElementById(userId)) {
-    throw "2 users with same id" ;
-  }
-  const user = document.createElement('div');
-  users.appendChild(user);
-  user.user_id = userId;
-  user.setAttribute('id', userId);
-  title = document.createElement('h1');
-  title.textContent = userId;
-  user.appendChild(title);
   console.info("Adding user " + userId + ".");
+  const elem = getUserEl(userId);
   return attachSubscriber(ctx, userId)
     .then(x =>   { ctx.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
 }
@@ -73,13 +91,15 @@ function addUser(ctx, userId) {
 function removeUser(ctx, userId) {
   console.info("Removing user " + userId + ".");
 
+  // for debugging
   const users = document.getElementById('friends');
   console.log(users);
-  if (! document.getElementById(userId)) {
+  if (! document.getElementById("hushpipe_user_" + userId)) {
     throw "user to remove is not there" ;
   }
-  user = document.getElementById(userId);
-  user.parentNode.removeChild(user);
+
+  const userelem = getUserEl(userId);
+  userelem.parentNode.removeChild(userelem);
 
 
   var subscriber = ctx.subscribers[userId];
@@ -93,6 +113,7 @@ function removeUser(ctx, userId) {
 let firstMessageTime;
 
 function storeMessage(data, reliable) {
+  console.log(data);
   if (!firstMessageTime) {
     firstMessageTime = performance.now();
   }
@@ -102,7 +123,7 @@ function storeMessage(data, reliable) {
 //    message: JSON.parse(data)
     message: data,
   });
-  updateMessageCount();
+  //updateMessageCount();
 }
 
 function storeReliableMessage(ev) {
@@ -185,18 +206,20 @@ function sendData(ctx, channel, msg) {
 }
 
 function handleIncomingVideo (msg) {
-  console.log('incoming video packet', msg.srcElement.label , msg.data);
-
+//  console.log('incoming video packet', msg.srcElement.label , msg.data);
+return msg;
 
 }
 
 function newDataChannel ( id ) {
   const channel = janusconn.createDataChannel(id , DATACHAN_CONF );
-  if (id.startsWith("video")) {
+  /*
+  if (id.startsWith("huhuh")) {
      channel.addEventListener("message", handleIncomingVideo);
   } else {
     channel.addEventListener("message", storeUnreliableMessage);
   }
+  */
   //channel.addEventListener("onopen", sendData(channel, "chan is now open" + id));
 //  setInterval(sendData, 1000,ctx, channel, "every second a messae on " + id);
   return channel
@@ -210,7 +233,6 @@ async function attachPublisher(ctx) {
   console.info("Attaching publisher for session: ", ctx.session);
  
   console.log('room: ', ctx.roomId, 'ctx: ', ctx);
-
   janusconn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
   var handle = new Minijanus.JanusPluginHandle(ctx.session);
   associate(janusconn, handle, "attach publisher");
@@ -219,14 +241,20 @@ async function attachPublisher(ctx) {
   handle.on("event", ev => {
     var data = ev.plugindata.data;
     if (data.event == "join" && data.room_id == ctx.roomId) {
-      this.addUser(ctx, data.user_id);
+      console.log('join event: ', data)
+      addUser(ctx, data.user_id);
     } else if (data.event == "leave" && data.room_id == ctx.roomId) {
-      this.removeUser(ctx, data.user_id);
+      removeUser(ctx, data.user_id);
     } else if (data.event == "data") {
       console.log(data);
+    } else if (!data.room_id == ctx.roomId) {
+      throw "data.room_id != ctx.roomId";
+    } else if (data.response) {
+      console.log('response event: ', data);
     } else {
       console.log('unhandled event: ', ev);
-    //  throw "unhandled event";
+      // Some events get handled in the associate eventhandler
+      //throw "unhandled event";
     }
   });
 
@@ -234,7 +262,7 @@ async function attachPublisher(ctx) {
   showStatus(`Connecting WebRTC...`);
   
   // this is the channel we gonna publish video on
-  ctx.videoChannel = newDataChannel("video" + ctx.user_id);
+  ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${ctx.roomId}...`);
@@ -257,6 +285,7 @@ async function attachPublisher(ctx) {
 
   showStatus(`Subscribing to others in room ${ctx.roomId}`);
   var occupants = reply.plugindata.data.response.users[ctx.roomId] || [];
+  // here is where all users are created when you initially join the room
   await Promise.all(occupants.map(userId => addUser(ctx, userId)));
 
   // returns handle + rtcpeerconn + videoChannel to send on
@@ -270,8 +299,18 @@ function attachSubscriber(ctx, otherId) {
   addExisting(conn, handle, "attach subscriber: " + otherId);
 
   // this is 1 of the channels to receive video on 
-  const otherVideoChannel = newDataChannel("video" + otherId);
+  const chan_video_high = newDataChannel("video_high_" + otherId);
+  const userEl = getUserEl(otherId);
+//  userEl.chan_video_high = highVideoChannel;
+  const feed = hush_new_feed(userEl, "video_high");
 
+  let curryplayvideo = (feed) => (evt) => hush_play_video(evt, feed);
+
+  chan_video_high.addEventListener("message", curryplayvideo(feed));
+//  chan_video_high.addEventListener("message", hush_play_video,feed);
+
+
+  
   return handle.attach("janus.plugin.sfu")
     .then(_ => handle.sendMessage({ kind: "join", room_id: ctx.roomId, user_id: ctx.user_id, subscribe: { media: otherId }}))
     .then(_ => waitForEvent("webrtcup", handle))

@@ -27,6 +27,7 @@
  * - IV_BYTES: Constant int for denoting IV length in bytes.
  * - MASTER_KEY_BYTES: Constant int denoting expected length of master key.
  */
+'use strict';
 
 const GCM_PARAMS = {
     name: 'AES-GCM',
@@ -196,6 +197,7 @@ encrypt_blob(key, blob)
 async function
 decrypt_uint8array(key, buf)
 {
+//    console.log('buf in decrypt: ', buf)
     const iv = buf.subarray(-IV_BYTES);
     const data = buf.subarray(0, -IV_BYTES);
     return crypto.subtle.decrypt(

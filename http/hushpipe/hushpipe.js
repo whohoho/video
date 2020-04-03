@@ -1,3 +1,6 @@
+'use strict';
+
+
 let $ = a => document.querySelector(a);
 
 let hush_key; /* Key used to encrypt/decrypt */
@@ -43,30 +46,52 @@ hush_newroom()
     hush_read_key();
 }
 
+async function
+hush_play_video(evt, feed) {
+	 console.log("new video buffer: ", evt, feed);
+
+   var uint8View = new Uint8Array(evt.data);
+
+   //console.log('playing: ', uint8View, 'on feed: ' , feed); 
+    try {
+   var plain = await decrypt_uint8array(hush_key, uint8View);
+    } catch (err) {
+      console.log('decryption failed: ', err);
+      return;
+    }
+//  console.log('feed in play_video', feed);
+   const videl = feed.getElementsByTagName('video')[0]
+   videl.buf.appendBuffer(plain);
+//	 videl.play();
+   console.log(videl);
+}
+
 function
 hush_camera_record()
 {
   async function please_encrypt(blob_event){
-      console.log('xx', blob_event, await blob_event.data.arrayBuffer());
+      //console.log('xx', blob_event, await blob_event.data.arrayBuffer());
       var ciphertext = await encrypt_blob(hush_key, blob_event.data);
       try {
         gctx.videoChannel.send(ciphertext);
       } catch (err) { console.log('send failed: ', err) }
       
-      console.log('should send', ciphertext);
+      //console.log('should send', ciphertext);
+    
       var plain = await decrypt_uint8array(hush_key, ciphertext);
-      console.log('plain', plain);
+      //console.log('plain', plain);
       if (hush_camera_loopback) {
-	  console.log(hush_camera_loopback.buf);
-	  hush_camera_loopback.buf.appendBuffer(plain);
-	  hush_camera_loopback.play();
+	  //console.log(hush_camera_loopback);
+	  const preview = hush_camera_loopback.getElementsByTagName('video')[0]
+    preview.buf.appendBuffer(plain);
+	  preview.play();
       }
   }
   async function camera_works(s){
       console.log('s',s);
       //let svt = s.getVideoTracks()[0];
 
-      hush_camera_loopback = hush_new_feed($('#myface'));
+      hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
 
       hush_camera_handle = new MediaRecorder(s);
       hush_camera_handle.ondataavailable = please_encrypt;
@@ -96,21 +121,46 @@ hush_camera_stop()
  * Call with $('#friends') or $('#myface')
  */
 function
-hush_new_feed(where)
+hush_new_feed(where, id)
 {
-    const vid = document.createElement('video');
-    let m_source = new MediaSource();
-    m_source.addEventListener(
-	'sourceopen',
-	e => {
-	    console.log(e);
-	    /* TODO hardcoding the codec here sucks */
-	    vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
-	});
-    vid.src = URL.createObjectURL(m_source);
-    vid.buffered = false; /* TODO */
-    where.appendChild(vid);
-    return vid;
+    // id can be type of feed to? so video_high, video_low, audio, filereceiver, etc.
+    if (! id.startsWith("video_high") ){
+      console.log("not implemented feed: " + id);
+      throw "feed type not implemented: "
+    }
+    if ( where.querySelector("#div_" + id) ) {
+      console.log("existing feed, returning");
+      return where.querySelector("#div_" + id);
+    } else { // new feed
+      const div = document.createElement('div');
+      div.setAttribute('id', "div_" + id);
+      div.setAttribute('class', "div_video_high");
+      let title = document.createElement('h1');
+      title.textContent = "video_high: " + id;
+      div.appendChild(title);
+      const vid = document.createElement('video');
+      vid.setAttribute('id', id);
+      div.appendChild(vid);
+
+     let m_source = new MediaSource();
+      m_source.addEventListener(
+    'sourceopen',
+    e => {
+        console.log(e);
+        /* TODO hardcoding the codec here sucks */
+        vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
+    });
+      vid.src = URL.createObjectURL(m_source);
+      // FIXME: readonly property vid.buffered = false; /* TODO */
+
+      where.appendChild(div);
+
+    //vid.play();
+    vid.autoplay = true;
+    vid.controls = true;
+
+      return div;
+    }
 }
 
 async function
