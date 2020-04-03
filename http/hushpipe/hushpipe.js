@@ -46,24 +46,50 @@ hush_newroom()
     hush_read_key();
 }
 
-async function
-hush_play_video(evt, feed) {
-	 console.log("new video buffer: ", evt, feed);
+// takes datachannel event + feed element (div with 1 video inside)
+async function hush_play_datachannel(evt, feed) {
+	 //console.log("new video buffer: ", evt, feed);
 
    var uint8View = new Uint8Array(evt.data);
+   hush_play_video(uint8View, feed)
+}
 
-   //console.log('playing: ', uint8View, 'on feed: ' , feed); 
+// takes encrypted uint8array + feed element (div with 1 video inside)
+async function hush_play_video(ciphertext, feed) {
+   //console.log('encrypted: ', ciphertext, 'on feed: ' , feed); 
     try {
-   var plain = await decrypt_uint8array(hush_key, uint8View);
+   var plain = await decrypt_uint8array(hush_key, ciphertext);
     } catch (err) {
-      console.log('decryption failed: ', err);
+
+      console.log('decryption failed (hush_play_video): ', err, ciphertext, feed);
       return;
     }
-//  console.log('feed in play_video', feed);
-   const videl = feed.getElementsByTagName('video')[0]
+  //console.log('decrypted in play_video', plain , feed);
+
+   /* 
+   const videl1 = hush_camera_loopback = hush_new_feed($('#testface'), "video_high").getElementsByTagName('video')[0];
+    console.log(videl1);
+
+  */ 
+
+/*
+  try {
    videl.buf.appendBuffer(plain);
-//	 videl.play();
+	 videl.play();
    console.log(videl);
+  } catch (err) {
+      console.log('playing failed (hush_play_video): ', err, feed, plain, videl);
+
+  }
+*/
+
+    const videl = feed.getElementsByTagName('video')[0]
+//	  const preview = hush_camera_loopback.getElementsByTagName('video')[0]
+    //console.log('preview vs videl : ', preview, videl);
+    videl.buf.appendBuffer(plain);
+	  videl.play();
+    //console.log(preview);
+
 }
 
 function
@@ -78,13 +104,19 @@ hush_camera_record()
       
       //console.log('should send', ciphertext);
     
-      var plain = await decrypt_uint8array(hush_key, ciphertext);
+      //var plain = await decrypt_uint8array(hush_key, ciphertext);
       //console.log('plain', plain);
       if (hush_camera_loopback) {
 	  //console.log(hush_camera_loopback);
-	  const preview = hush_camera_loopback.getElementsByTagName('video')[0]
-    preview.buf.appendBuffer(plain);
-	  preview.play();
+	  //const preview = hush_camera_loopback.getElementsByTagName('video')[0]
+    //preview.buf.appendBuffer(plain);
+	  //preview.play();
+      const userEl = getUserEl("mine");
+//  userEl.chan_video_high = highVideoChannel;
+      //const feed = hush_new_feed(userEl, "video_high");
+      const feed = hush_new_feed($('#myface'), "video_high");
+
+      hush_play_video(ciphertext, feed)
       }
   }
   async function camera_works(s){
@@ -123,6 +155,7 @@ hush_camera_stop()
 function
 hush_new_feed(where, id)
 {
+    console.log('getting feed: ', where, id);
     // id can be type of feed to? so video_high, video_low, audio, filereceiver, etc.
     if (! id.startsWith("video_high") ){
       console.log("not implemented feed: " + id);
@@ -130,8 +163,10 @@ hush_new_feed(where, id)
     }
     if ( where.querySelector("#div_" + id) ) {
       console.log("existing feed, returning");
+      console.log('this should be the feed div (id="div_video_high")', where.querySelector("#div_"+id));
       return where.querySelector("#div_" + id);
     } else { // new feed
+      // this is the div in the userdiv
       const div = document.createElement('div');
       div.setAttribute('id', "div_" + id);
       div.setAttribute('class', "div_video_high");
@@ -158,7 +193,7 @@ hush_new_feed(where, id)
     //vid.play();
     vid.autoplay = true;
     vid.controls = true;
-
+      console.log('this should be the feed div (id="div_video_high")', div)
       return div;
     }
 }

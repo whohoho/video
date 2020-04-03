@@ -289,7 +289,7 @@ async function attachPublisher(ctx) {
   await Promise.all(occupants.map(userId => addUser(ctx, userId)));
 
   // returns handle + rtcpeerconn + videoChannel to send on
-  return  { handle, janusconn, videoChannel};
+  return  { handle, janusconn};
 }
 
 function attachSubscriber(ctx, otherId) {
@@ -304,7 +304,7 @@ function attachSubscriber(ctx, otherId) {
 //  userEl.chan_video_high = highVideoChannel;
   const feed = hush_new_feed(userEl, "video_high");
 
-  let curryplayvideo = (feed) => (evt) => hush_play_video(evt, feed);
+  let curryplayvideo = (feed) => (evt) => hush_play_datachannel(evt, feed);
 
   chan_video_high.addEventListener("message", curryplayvideo(feed));
 //  chan_video_high.addEventListener("message", hush_play_video,feed);
