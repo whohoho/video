@@ -29,6 +29,9 @@
  */
 'use strict';
 
+/* Ask for fewer silent errors: */
+'use strict';
+
 const GCM_PARAMS = {
     name: 'AES-GCM',
     length: 256, /* Key length, in bits */
@@ -58,6 +61,65 @@ _crypto_uint8arr_to_base64(arr)
     return btoa(String.fromCharCode(...arr))
 	.replace(/\+/g, '@')
 	.replace(/=/g, '_');
+}
+
+// class FeedSigner {
+//   constructor() {
+//     return (async () => {
+//       return this;
+//     });
+//   }
+// }
+
+async function
+crypto_feedsigner(room)
+{
+    let db;
+
+    let op = indexDB.open('hushpipe');
+    op.onupgradeneeded = () => {
+	/*
+	 * Migration; make sure required data structures are here.
+	 */
+	db = op.result;
+	let feedsign = db.createObjectStore(
+	    'feedsign',
+	    {keyPath: 'room'});
+	let roomIndex = store.createIndex('by_room', 'room', {unique: true});
+    }
+    op.onsuccess = () => { db = op.result; };
+
+    let tx = db.transaction('hushpipe', 'readwrite');
+    let feedsign = tx.objectStore('feedsign');
+
+    let key = await feedsign.get({room: room});
+
+    if (!key) {
+	/*
+	 * We create this key as non-extractable.
+	 * This it to prevent the server from (at a later point)
+	 * extracting it and impersonating us.
+	 * We can still store it in IndexedDB since that has breaks
+	 * the 'non-extractable' invariant.
+	 * The server can still serve us evil javascript that produces
+	 * signatures, but at least that only works when they have access
+	 * to the user's browser.
+	 * If some kind of TEE-like mechanism existed we could use that instead.
+	 * Perhaps that can be implemented with the subresource integrity
+	 * mechanism: If those have a separate origin, we can make an indexeddb
+	 * that is only accessible to the same code, which means a bad server
+	 * cannot later mess with the keys.
+	 */
+
+	const key = await crypto.subtle.generateKey(
+	    SIGN_PARAMS,
+	    false, /* extractable */
+	    ['sign', 'verify'],
+	);
+	feedsign.put({'room': room, 'key': key});
+    }
+
+    return key;
 }
 
 /*

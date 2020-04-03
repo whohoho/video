@@ -1,5 +1,5 @@
+/* Ask for fewer silent errors: */
 'use strict';
-
 
 let $ = a => document.querySelector(a);
 
@@ -7,7 +7,12 @@ let hush_key; /* Key used to encrypt/decrypt */
 let hush_room; /* Room ID derived from master key */
 let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
-let gctx;
+let gctx; /* TODO explain what this */
+
+/*
+ * TODO check out these APIs:
+ * https://www.w3.org/TR/quota-api/ - get bigger allowance for local data
+ */
 
 function
 hush_render_friends(mouseevent)
@@ -113,7 +118,7 @@ hush_camera_record()
   var m = navigator.getUserMedia(
       {video:true},
       camera_works,
-      e=>console.log('err',e)
+      e=>console.log('navigator.getUserMedia err:',e)
   );
 }
 
@@ -162,7 +167,7 @@ hush_new_feed(where, id)
       m_source.addEventListener(
     'sourceopen',
     e => {
-        console.log(e);
+        console.log('m_source:sourceopen', e);
         /* TODO hardcoding the codec here sucks */
         vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
     });
