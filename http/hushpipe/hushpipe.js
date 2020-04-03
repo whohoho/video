@@ -37,20 +37,6 @@ let gctx;
 async function
 hush_newroom()
 {
-    
-    let ctx = {
-      user_id: new String(Math.floor(Math.random() * (1000000001))),
-      session: null,
-      publisher: null,
-      subscribers: {},
-      videoChannel: null,
-      messages: [],
-      roomId: "42",
-
-    };
-    gctx = ctx;
-    janus_connect(ctx, "ws://localhost:8188");
-
     console.log('new master key');
     await crypto_new_master_key();
     console.log('new room key');
@@ -137,7 +123,28 @@ hush_onload()
     $('#hush_camera_stop').onclick = hush_camera_stop;
 
     /* Check if we already have a key: */
-    hush_read_key();
+    try {
+	hush_read_key();
+	console.log('cool we are in an existing room');
+    } catch (e) {
+	console.log('failed reading key', e);
+	hush_newroom();
+    }
+
+    let ctx = {
+	user_id: new String(Math.floor(Math.random() * (1000000001))),
+      session: null,
+      publisher: null,
+      subscribers: {},
+      videoChannel: null,
+      messages: [],
+      roomId: "42",
+
+    };
+    gctx = ctx;
+    janus_connect(ctx, "ws://localhost:8188");
+
+
 
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
 

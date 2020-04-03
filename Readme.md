@@ -16,4 +16,5 @@ janus demo's:
 http://localhost/janus
 
 
+chromium --temp-profile --use-fake-device-for-media-stream --use-file-for-fake-video-capture=/home/user/javascript/hushtalk/foreman.y4m http://localhost:80/hushpipe/
 

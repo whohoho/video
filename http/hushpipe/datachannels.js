@@ -7,9 +7,10 @@ const DATACHAN_CONF = {
 };
 
 const PEER_CONNECTION_CONFIG = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
+    iceServers: [
+// TODO here we can add STUN servers
+//    { urls: "stun:stun.l.google.com:19302" },
+//    { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
   ]
 };
 
