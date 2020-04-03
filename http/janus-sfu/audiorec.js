@@ -12,21 +12,21 @@ const AUDIO_RECOPT = {
 	      //videoBitsPerSecond : 2500000,
 	      //bitsPerSecond:       2628000,
 	      mimeType : AUDIO_MIME,
-        timeslice: 1000,
-	    };
+        timeslice: 100,
+ 	    };
 
 const VIDEO_RECOPT = { audioBitsPerSecond :  256000,
 	      //videoBitsPerSecond : 2500000,
 	      //bitsPerSecond:       2628000,
 	      mimeType : VIDEO_MIME,
         timeslice: 10,
-	    };
+ 	    };
 
 
 function makeMediaStream(inputstream, recopts) {
 	var recorder;
  
-  recorder = new MediaRecorder(inputstream, recopts);
+  recorder = RecordRTC(inputstream, recopts);
   console.log("new mediastream created");
 
   function la (event){
@@ -41,15 +41,16 @@ function makeMediaStream(inputstream, recopts) {
       console.log(recorder.state);
       recorder.ondataavailable = function (ev) {
         controller.enqueue(ev.data);
+        console.log('rec data');
         console.log(ev.data);
       };
 
       recorder.onclose = () => controller.close();
       recorder.onerror = () => controller.error(new Error("audiorecorder error"));
-      recorder.start();
-      console.log(recorder.ondataAvailable);
+      recorder.startRecording();
+//      console.log(recorder.ondataAvailable);
       console.log(recorder.state);
-      console.log(recorder.requestData());
+//      console.log(recorder.requestData());
 
     },
 
@@ -101,9 +102,7 @@ async function test () {
   let videostream = await makeMediaStream(videoin, VIDEO_RECOPT);
   console.log("we have video, trying to play");
   insertPlayer(videostream);
-
-
-  /*
+/*
   let response = new Response(stream2);
 
   (response.blob())
