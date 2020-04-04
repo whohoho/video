@@ -2,7 +2,7 @@
 import * as audiopipe from "./pipe_mod.js";
 //import { create_sender } from "./pipe_mod.js";
 
-import { hush_new_feed, hush_play_datachannel } from "./hushpipe.js";
+import { hush_new_feed, hush_new_pipe ,hush_play_datachannel } from "./hushpipe.js";
 
 //FIXME
 var janusconn;
@@ -219,6 +219,11 @@ async function attachPublisher(ctx) {
   // this is the channel we gonna publish video on
   ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
+  const audiosend_el = document.getElementById('audiosender');
+
+  const audioChannel = newDataChannel("audio_" + ctx.user_id);
+  audiopipe.create_sender(audiosend_el, audioChannel, ctx.encryptor);
+
   await waitForEvent("webrtcup", handle);
   showStatus(`Joining room ${ctx.roomId}...`);
 
@@ -253,17 +258,19 @@ function attachSubscriber(ctx, otherId) {
   var handle = new Minijanus.JanusPluginHandle(ctx.session);
   addExisting(conn, handle, "attach subscriber: " + otherId);
 
-  // this is 1 of the channels to receive video on 
+  // video
   const chan_video_high = newDataChannel("video_high_" + otherId);
   const userEl = getUserEl(otherId);
-//  userEl.chan_video_high = highVideoChannel;
-  const feed = hush_new_feed(userEl, "video_high");
+  const videofeed = hush_new_feed(userEl, "video_high");
+  let curryplayvideo = (videofeed) => (evt) => hush_play_datachannel(evt, videofeed);
+  chan_video_high.addEventListener("message", curryplayvideo(videofeed));
 
-  let curryplayvideo = (feed) => (evt) => hush_play_datachannel(evt, feed);
+  //audio
+  const chan_audio = newDataChannel("audio_" + otherId);
 
-  chan_video_high.addEventListener("message", curryplayvideo(feed));
-//  chan_video_high.addEventListener("message", hush_play_video,feed);
-
+  // new_pipe creates a div with id "audio" under the user div
+  const audiofeed = hush_new_pipe(userEl, "audio"); 
+  audiopipe.create_receiver(audiofeed, chan_audio, ctx.decryptor);
 
   
   return handle.attach("janus.plugin.sfu")

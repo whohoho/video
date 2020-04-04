@@ -58,6 +58,16 @@ hush_read_key()
 	try { clearInterval(gctx.debugInterval);
 	    } catch(e){}
     }
+
+    await hush_read_key();
+    console.log('hush_key: ', hush_key)
+
+   // encrypt_blob(key, blob)
+    let encryptor = (key) => (blob) => encrypt_blob(key, blob);
+  //decrypt_uint8array(key, buf)
+    let decryptor = (key) => (buf) => decrypt_uint8array(key, buf);
+
+
     let ctx = {
 	user_id: new String(Math.floor(Math.random() * (1000000001))),
 	session: null,
@@ -66,6 +76,9 @@ hush_read_key()
 	videoChannel: null,
 	messages: [],
 	roomId: hush_room,
+  key: hush_read_key(),
+  encryptor: encryptor(hush_key),
+  decryptor: decryptor(hush_key),
     };
     ctx.debugInterval = setInterval(10, hush_render_friends(ctx));
     gctx = ctx;
@@ -239,21 +252,51 @@ hush_camera_resume()
     try { hush_camera_handle.resume(); } catch (e) {}
 }
 
+// id is the type of channel, its used in the classes / id's
+export function
+hush_new_pipe(where, id)
+{
+    console.log('creating dom element for channel',id, where);
+    // check if 'where' (the roommate container) has already a element with the same feedtype  
+    if ( where.querySelector("#div_" + id) ) {
+      console.log("existing pipe, returning");
+      console.log('this should be the pipe div (id="' + id + ' ")', where.querySelector("#div_"+id));
+      return where.querySelector("#div_" + id);
+    } else { // new feed
+      // this is the div in the userdiv
+      const div = document.createElement('div');
+      div.setAttribute('id', "div_" + id);
+      div.setAttribute('class', "div" + id);
+      let title = document.createElement('h6');
+      title.textContent = "pipe: " + id;
+      div.appendChild(title);
+      
+      where.appendChild(div);
+
+
+      return div;
+    }
+}
+
+
 /*
  * Call with $('#friends') or $('#myface')
  */
 export function
 hush_new_feed(where, id)
 {
+    //FIXME, this is video specific, see hush_new_pipe above
     console.log('getting feed: ', where, id);
     // id can be type of feed to? so video_high, video_low, audio, filereceiver, etc.
+    
     if (! id.startsWith("video_high") ){
       console.log("not implemented feed: " + id);
       throw "feed type not implemented: "
     }
+    
     if ( where.querySelector("#div_" + id) ) {
       console.log("existing feed, returning");
-      console.log('this should be the feed div (id="div_video_high")', where.querySelector("#div_"+id));
+      console.log('this should be the feed div (id="' + id + ' ")', where.querySelector("#div_"+id));
       return where.querySelector("#div_" + id);
     } else { // new feed
       // this is the div in the userdiv

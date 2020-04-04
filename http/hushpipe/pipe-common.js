@@ -30,7 +30,7 @@ const mutation_callback = function(mutationsList, observer) {
     }
 };
 
-function create_observer(elem) {
+export function create_observer(elem) {
   const observer = new MutationObserver(mutation_callback);
   observer.observe(status_el, {
     childList: false,
@@ -41,16 +41,6 @@ function create_observer(elem) {
 }
 //////////////////////////////////////
 //
-  async function please_encrypt(blob_event){
-      try {
-      var ciphertext = await encryptor(blob_event.data);
-      } catch (err) { warn('encryption failed', err); }
-      try {
-        channel.send(ciphertext);
-      } catch (err) { warn('send failed: ', err) }
-
-  }
-
 
 // gets called when dom element dissapears
 function teardown_callback(ctx) {
