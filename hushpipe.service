@@ -1,0 +1,20 @@
+[Unit]
+Description=start janus for hushpipe
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+
+WorkingDirectory=/tmp
+
+EnvironmentFile=/etc/default/sms
+
+###ExecStartPre=/bin/bash -c "cat ${LEFTOVER_STREAMER}/video/nginx.conf.template | /usr/local/bin/sd-sed.sh > ${LEFTOVER_STREAMER}/video/nginx.conf"
+
+ExecStart=/bin/bash -c " cd ${SD_REPO_PATH}/video; /usr/bin/docker-compose -f ${SD_REPO_PATH}/video/docker-compose.yml up"
+ExecStop=/bin/bash -c " cd ${SD_REPO_PATH}/video; /usr/bin/docker-compose -f ${SD_REPO_PATH}/video/docker-compose.yml down"
+
+
+[Install]
+WantedBy=multi-user.target
