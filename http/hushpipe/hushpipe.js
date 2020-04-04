@@ -24,7 +24,7 @@ hush_render_friends(mouseevent)
 async function
 hush_read_key()
 {
-//    try {
+    //    try {
     const master_key = await get_master_key_from_url();
     const keys = await crypto_derive_from_master_key(master_key);
     console.log('keys',keys);
@@ -288,6 +288,12 @@ hush_onload()
     }
 
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
-    console.log('wtf');
+
+    /*
+     * Auto-play shit:
+     */
+    setInterval(
+	() => document.querySelectorAll('video').forEach(e=>e.play())
+	, 1000);
 
 }
