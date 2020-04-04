@@ -9,9 +9,14 @@ let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
 let gctx; /* TODO explain what this */
 
+let hush_my_init_segment; /* Initialization segment of our own video feed */
+
+const HUSH_CODEC = 'video/webm;codecs=vp8';
+
 /*
  * TODO check out these APIs:
  * https://www.w3.org/TR/quota-api/ - get bigger allowance for local data
+ * https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getConstraints#Example - how to change camera
  */
 
 function
@@ -105,9 +110,9 @@ hush_append_buffer(video_element, plaintext)
 	/*
 	 * Technically speaking we should wait, instead we just drop frames
 	 */
-	video_element_buf.addEventListener('updateend', function () {
-	    try { video_element.buf.appendBuffer(plaintext);}catch(e){}
-	}, { once: true });
+	video_element.buf.addEventListener('updateend', function () {
+	    //try { video_element.buf.appendBuffer(plaintext);}catch(e){}
+	}, { once: true, passive: true });
 	return;
     }
     // maybe look at video_element.readyState
@@ -165,9 +170,7 @@ hush_camera_record()
 	   * our own payload, but this way we can check that our encryption
 	   * worked as expected.
 	   */
-	  const userEl = getUserEl("mine");
-	  const feed = hush_new_feed($('#myface'), "video_high")
-	  hush_play_video(ciphertext, feed)
+	  await hush_play_video(ciphertext, hush_camera_loopback);
       }
   }
   async function camera_works(s){
@@ -176,12 +179,25 @@ hush_camera_record()
 
       hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
 
-      hush_camera_handle = new MediaRecorder(s);
+      hush_camera_handle = new MediaRecorder(s, {codec: HUSH_CODEC});
       hush_camera_handle.ondataavailable = please_encrypt;
       hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
+    let constraints = {
+	video: {
+	    frameRate: { ideal: 20, max: 25, } /* or just video:true*/
+	    // facingMode: 'user' // use selfie-cam, !shoot-my-swimming-pool-cam
+	},
+	/* audio: {
+	   noiseSuppression: true,
+	   echoCancellation: true,
+	   // sampleRate: 99999, /// Hz
+	   //latency: 99.99, /// seconds
+	}
+	*/
+    }
   var m = navigator.getUserMedia(
-      {video:true},
+      constraints,
       camera_works,
       e=>console.log('navigator.getUserMedia err:',e)
   );
@@ -248,12 +264,12 @@ hush_new_feed(where, id)
 		e => {
 		    console.log('m_source:sourceopen', e);
 		    /* TODO hardcoding the codec here sucks */
-		    vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
-		});
+		    vid.buf = m_source.addSourceBuffer(HUSH_CODEC);
+		}, {once: true, passive:true});
 	    m_source.addEventListener(
 		'sourceended', e => {
 		    console.log('sourceended:', m_source, e);
-		});
+		}, {once: true, passive:true});
 	    video.src = URL.createObjectURL(m_source);
 	}
 
@@ -265,14 +281,16 @@ hush_new_feed(where, id)
 	    (e) => {
 		console.log('new video source because video erred', vid);
 		set_source(vid);
-	    });
+	    }, {once: true, passive:true});
 	// FIXME: readonly property vid.buffered = false; /* TODO */
 
 	/*
 	 * Trigger error to make sure we have a source ready:
 	 */
 	set_source(vid);
-	vid.play();
+	try { vid.play(); } catch (e){
+	    console.log('play fail', vid, e);
+	}
 
 	where.appendChild(div);
 
