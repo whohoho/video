@@ -1,0 +1,38 @@
+version: '2'
+
+services:
+  janus-new:
+    #image: atyenoria/janus-webrtc-gateway-docker:latest
+    # image: mcroth/docker-janus:latest 
+    build:
+      context: .
+      dockerfile: janus.dockerfile
+    container_name: janus-new
+    volumes:
+      - ./janus/etc/janus/:/opt/janus/etc/janus/
+      - ./keys:/opt/keys/
+      - ./janus/janus.log:/var/log/janus.log:rw
+    ports:
+      - 8088:8088
+      - 8081:8081
+      - 8188:8188
+
+
+  janus-admin:
+    image: quay.io/hellofresh/janus-dashboard
+    container_name: janus-dashboard-othername
+    ports:
+      - 8082:80
+  #docker run -d -p 8082:80 --name janus-dashboard quay.io/hellofresh/janus-dashboard
+  #
+  http-server:
+    image: alfg/nginx-rtmp
+    ports:
+      - 443:443
+      - 80:80
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./http:/www/static:ro
+      - ./mime.types:/etc/nginx/mime.types
+      - ./keys:/opt/certs
+
