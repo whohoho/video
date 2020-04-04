@@ -1,4 +1,8 @@
 'use strict';
+import * as audiopipe from "./pipe_mod.js";
+//import { create_sender } from "./pipe_mod.js";
+
+import { hush_new_feed, hush_play_datachannel } from "./hushpipe.js";
 
 //FIXME
 var janusconn;
@@ -35,7 +39,7 @@ function receiveMsg(session,ev) {
 }
 
 // connect to janus (the SFU server)
-function janus_connect(ctx, server) {
+export function janus_connect(ctx, server) {
 //  console.log("1 ctx in janus_connect: ", ctx);
 
   var ws = new WebSocket(server, "janus-protocol");
@@ -54,7 +58,7 @@ function janus_connect(ctx, server) {
 }
 
 // create a DOM element for a user in the room, all state of that user is stored here
-function getUserEl(userId) {
+export function getUserEl(userId) {
   const elid = "hushpipe_user_" + userId;
   const users = document.getElementById('friends');
   console.log(users);
@@ -151,7 +155,7 @@ function associate(conn, handle, debugmsg) {
 }
 
 
-function sendControlMessage(ctx, channel, msg) {
+export function sendControlMessage(ctx, channel, msg) {
   let obj = {
     "message": msg,
     "timestamp": new Date(),
