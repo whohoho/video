@@ -98,14 +98,18 @@ hush_append_buffer(video_element, plaintext)
     }
     if (video_element.buf.mode != 'segments')
 	throw 'video is not segments WHAT\nx\nx\nx';
+    if (video_element.buf.error) // then we should wait
+	throw 'video is ERRORed WHAT\ngx\nx\nx';
+
     if (video_element.buf.updating){
 	/*
 	 * Technically speaking we should wait, instead we just drop frames
 	 */
+	video_element_buf.addEventListener('updateend', function () {
+	    try { video_element.buf.appendBuffer(plaintext);}catch(e){}
+	}, { once: true });
 	return;
     }
-    if (video_element.buf.error) // then we should wait
-	throw 'video is ERRORed WHAT\ngx\nx\nx';
     // maybe look at video_element.readyState
 
     try {
@@ -196,6 +200,18 @@ hush_camera_stop()
     hush_camera_loopback = null;
 }
 
+function
+hush_camera_pause()
+{
+    try { hush_camera_handle.pause(); } catch (e) {}
+}
+
+function
+hush_camera_resume()
+{
+    try { hush_camera_handle.resume(); } catch (e) {}
+}
+
 /*
  * Call with $('#friends') or $('#myface')
  */
@@ -226,6 +242,7 @@ hush_new_feed(where, id)
 
 	function set_source(video) {
 	    let m_source = new MediaSource();
+	    m_source.mode = 'segments';
 	    m_source.addEventListener(
 		'sourceopen',
 		e => {
@@ -277,6 +294,8 @@ hush_onload()
     $('#hush_camera_record').onclick = hush_camera_record;
     $('#hush_camera_stop').onclick = hush_camera_stop;
     $('#hush_render_friends').onclick = hush_render_friends;
+    $('#hush_camera_pause').onclick = hush_camera_pause;
+    $('#hush_camera_resume').onclick = hush_camera_resume;
 
     /* Check if we already have a key: */
     try {
@@ -293,7 +312,9 @@ hush_onload()
      * Auto-play shit:
      */
     setInterval(
-	() => document.querySelectorAll('video').forEach(e=>e.play())
+	() => document.querySelectorAll('video').forEach(e=> {
+	    try {e.play();}catch(e){}
+	})
 	, 1000);
 
 }
