@@ -40,7 +40,7 @@ hush_read_key()
     //    try {
     const master_key = await get_master_key_from_url();
     const keys = await crypto_derive_from_master_key(master_key);
-    console.log('keys',keys);
+    //console.log('keys',keys);
     hush_key = keys.e2e;
     hush_room = keys.room;
     $('#hush_room_key_label').innerText =
@@ -60,7 +60,7 @@ hush_read_key()
     }
 
     await hush_read_key();
-    console.log('hush_key: ', hush_key)
+    //console.log('hush_key: ', hush_key)
 
    // encrypt_blob(key, blob)
     let encryptor = (key) => (blob) => encrypt_blob(key, blob);
@@ -155,12 +155,13 @@ hush_play_video(ciphertext, feed)
 {
     //console.log('encrypted: ', ciphertext, 'on feed: ' , feed);
     const v = feed.getElementsByTagName('video')[0];
-    console.log(
+
+  /*console.log(
 	`vid state: ${feed.parentElement.id} , v.currentTime:`,v.currentTime,
 	`, v.buffered:`, v.buffered,
 	`, v.currentSrc:${v.currentSrc}, v.duration:${v.duration}, v.ended:${v.ended}, v.error:`,
 	v.error, `, v.networkState:${v.networkState}`);
-
+*/
     try {
 	var plain = await decrypt_uint8array(hush_key, ciphertext);
     } catch (err) {
@@ -259,8 +260,8 @@ hush_new_pipe(where, id)
     console.log('creating dom element for channel',id, where);
     // check if 'where' (the roommate container) has already a element with the same feedtype  
     if ( where.querySelector("#div_" + id) ) {
-      console.log("existing pipe, returning");
-      console.log('this should be the pipe div (id="' + id + ' ")', where.querySelector("#div_"+id));
+//      console.log("existing pipe, returning");
+//      console.log('this should be the pipe div (id="' + id + ' ")', where.querySelector("#div_"+id));
       return where.querySelector("#div_" + id);
     } else { // new feed
       // this is the div in the userdiv
@@ -295,8 +296,8 @@ hush_new_feed(where, id)
     }
     
     if ( where.querySelector("#div_" + id) ) {
-      console.log("existing feed, returning");
-      console.log('this should be the feed div (id="' + id + ' ")', where.querySelector("#div_"+id));
+//      console.log("existing feed, returning");
+//      console.log('this should be the feed div (id="' + id + ' ")', where.querySelector("#div_"+id));
       return where.querySelector("#div_" + id);
     } else { // new feed
       // this is the div in the userdiv
