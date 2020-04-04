@@ -35,7 +35,28 @@ hush_read_key()
 	+ '\n\nroom name: ' + keys.room;
   //  } catch (e) {
 //	console.log('error reading room key', e);
-  //  }
+    //  }
+
+    /*
+     * Replace connection Janus
+     */
+    if (gctx) {
+	gctx.session.destroy();
+	try { clearInterval(gctx.debugInterval);
+	    } catch(e){}
+    }
+    let ctx = {
+	user_id: new String(Math.floor(Math.random() * (1000000001))),
+	session: null,
+	publisher: null,
+	subscribers: {},
+	videoChannel: null,
+	messages: [],
+	roomId: hush_room,
+    };
+    ctx.debugInterval = setInterval(10, hush_render_friends(ctx));
+    gctx = ctx;
+    janus_connect(ctx, "ws://localhost:8188");
 }
 
 
@@ -266,24 +287,7 @@ hush_onload()
 	hush_newroom();
     }
 
-    let ctx = {
-	user_id: new String(Math.floor(Math.random() * (1000000001))),
-      session: null,
-      publisher: null,
-      subscribers: {},
-      videoChannel: null,
-      messages: [],
-      roomId: "42",
-
-    };
-    gctx = ctx;
-    janus_connect(ctx, "ws://localhost:8188");
-
-
-
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
-
-    setInterval(10, hush_render_friends(ctx));
-  console.log('wtf');
+    console.log('wtf');
 
 }
