@@ -1,111 +1,130 @@
 'use strict';
 import "./pipe-common.js";
-export const name = 'audio';
+export const NAME = 'audio';
 // the type of datachannel this module wants
+
+const isDebug = true
+
+if (isDebug) var debug = console.log.bind(window.console)
+else var debug = function(){}
+
+var warn = console.log.bind(window.console)
+
 
 const TYPE = 'audio'
 
 const CAPTURE_CONSTRAINTS = {audio: true};
-const MIME = 'audio/webm;codecs=opus';
+const MIMETYPE = 'audio/webm;codecs=opus';
 const REC_MS = 10;
 const RECOPT = { 
         audioBitsPerSecond :  64000,
 	      //videoBitsPerSecond : 2500000,
 	      //bitsPerSecond:       2628000,
-	      mimeType : MIME,
+	      mimeType : MIMETYPE,
  	    };
 
-let channel;
-let encryptor;
-let decryptor;
-let rec_handle
+//let channel;
+//let encryptor;
+//let decryptor;
+//let rec_handle;
+//let t;
+
+export async function please_encrypt(blob_event, t){
+      //debug('chan in please_encrypt: ', t.channel, t.encryptor);
+      try {
+      var ciphertext = await t.encryptor(blob_event.data);
+      } catch (err) { warn('encryption failed', err); }
+      try {
+        t.channel.send(ciphertext);
+      } catch (err) { warn('send failed: ', err) }
+
+  }
+
+function create_vu(stream, t) {
+      // vu meter
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(stream);
+    const javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+    analyser.smoothingTimeConstant = 0.3;
+    analyser.fftSize = 1024;
+
+    microphone.connect(analyser);
+    analyser.connect(javascriptNode);
+    javascriptNode.connect(audioContext.destination);
+    
+    const canvas = document.createElement('canvas');
+
+    t.status_el.appendChild(canvas);
+
+    const canvasContext = canvas.getContext("2d");
+    javascriptNode.onaudioprocess = function() {
+        var array =  new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(array);
+        var values = 0;
+
+        var length = array.length;
+        for (var i = 0; i < length; i++) {
+            values += array[i];
+        }
+
+        var average = values / length;
+        canvasContext.clearRect(0, 0, 60, 130);
+        canvasContext.fillStyle = '#00ff00';
+        canvasContext.fillRect(0,130-average,25,130);
+    }
+
+
+
+
+}
 
 function
-record()
+record(t)
 {
-  async function camera_works(s){
-      rec_handle = new MediaRecorder(s);
-      rec_handle.ondataavailable = please_encrypt;
+  async function capture_works(s, t){
+      const rec_handle = new MediaRecorder(s);
+      rec_handle.ondataavailable = function (data) { 
+//        console.log('audiorecord callback ', data);
+        please_encrypt(data, t); 
+      }
       rec_handle.start(REC_MS);
   }
   var m = navigator.getUserMedia(
       CAPTURE_CONSTRAINTS,
-      camera_works,
+      function (stream) { 
+        capture_works(stream, t);
+        create_vu(stream, t);
+
+      },
       e=>warn('navigator.getUserMedia err:',e)
   );
 }
 
-function
-new_feed(where, id)
-{
-   debug('getting feed: ', where, id);
-    // id can be type of feed to? so video_high, video_low, audio, filereceiver, etc.
-    if (! id.startsWith(NAME) ){
-      warn("not implemented (in this module) feed: " + id);
-      throw "feed type not implemented: "
-    }
-    if ( where.querySelector("#div_" + id) ) {
-      console.log("existing feed, returning");
-      console.log('this should be the feed div (id="'+ NAME +'")', where.querySelector("#div_"+id));
-      return where.querySelector("#div_" + id);
-    } else { // new feed
-      // this is the div in the userdiv
-      const div = document.createElement('div');
-      div.setAttribute('id', "div_" + id);
-      div.setAttribute('class', "div_video_high");
-      let title = document.createElement('h1');
-      title.textContent = "video_high: " + id;
-      div.appendChild(title);
-      const vid = document.createElement(TYPE);
-      vid.setAttribute('id', id);
-      div.appendChild(vid);
-
-     let m_source = new MediaSource();
-      m_source.addEventListener(
-    'sourceopen',
-    e => {
-        console.log('m_source:sourceopen', e);
-        /* TODO hardcoding the codec here sucks */
-        vid.buf = m_source.addSourceBuffer(MIMETYPE);
-    });
-      vid.src = URL.createObjectURL(m_source);
-      // FIXME: readonly property vid.buffered = false; /* TODO */
-
-      where.appendChild(div);
-
-    //vid.play();
-    vid.autoplay = true;
-    vid.controls = true;
-      console.log('this should be the feed div (id="div_audio")', div)
-      return div;
-    }
-}
-
-
-
 // takes datachannel event + feed element (div with 1 video inside)
-async function play_datachannel(evt, feed) {
-	 //console.log("new video buffer: ", evt, feed);
+async function play_datachannel(evt, t) {
+//	 console.log("new audio buffer: ", evt, t);
 
    var uint8View = new Uint8Array(evt.data);
-   play(uint8View, feed)
+   play(uint8View, t)
 }
 
 // takes encrypted uint8array + feed element (div with 1 video inside)
-async function play(ciphertext, feed) {
-   //console.log('encrypted: ', ciphertext, 'on feed: ' , feed); 
-   let v = feed.getElementsByTagName(TYPE)[0];
-  console.log('vid state: ', feed.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
+async function play(ciphertext, t) {
+  // console.log('encryptee: ', ciphertext, 'on feed: ' , t.pipe_el); 
+   let v = t.pipe_el.getElementsByTagName(TYPE)[0];
+  console.log('audio state: ', t.pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
 
     try {
-   var plain = await decrypt_uint8array(hush_key, ciphertext);
+   var plain = await t.decryptor(ciphertext);
     } catch (err) {
 
-      console.log('decryption failed (hush_play_video): ', err, ciphertext, feed);
+      console.log('decryption failed (hush_play): ', err, ciphertext, t.pipe_el);
       return;
     }
 
-  const videl = feed.getElementsByTagName('video')[0]
+  const videl = t.pipe_el.getElementsByTagName('audio')[0]
     videl.buf.appendBuffer(plain);
 	  videl.play();
 }
@@ -116,28 +135,106 @@ async function play(ciphertext, feed) {
 // status_el , DOM element it can use to keep its status, display controls / status to user
 // channel, a datachannel handle 
 // encryptor, curried function it can use to encrypt
-// parameters, implementation specific
 export function create_sender(status_el, channel, encryptor) {
-  create_observer(status_el);
-  record();  
+
+  // local log
+  let loge = document.createElement('pre');
+  status_el.appendChild(loge);
+
+  function log (msg)  {
+    for (var i = 0, j = arguments.length; i < j; i++){
+       // var txt = document.createTextNode(arguments[i]+' ');
+       // loge.appendChild(txt);
+        var alltext =alltext + arguments[i]+ ' -- ';
+    }
+    var br = document.createTextNode(alltext + "\n");
+    loge.appendChild(br);
+  }
+
+  //let log = (status_el) => (msg) => local_log(status_el, msg);
+
+  const t = {
+    log: log,
+    status_el: status_el,
+    encryptor: encryptor,
+    channel: channel,
+    status_el: status_el,
+  };
+  log('chan in create_sender: ', channel, t);
+  log('cryp in create_sender: ', encryptor);
+
+  let title = document.createElement('h1');
+  title.textContent = "audiosender";
+  status_el.appendChild(title);
+
+
+//  create-observer(status_el);
+  record(t);  
 }
 
 // create a receiver 
 // status_el , DOM element it can use to keep its status, display controls / status to user
 // channel, a datachannel handle (for receiving)
 // decryptor, curried function it can use to encrypt
-// parameters, implementation specific
+export function create_receiver(pipe_el, channel, decryptor) {
+  // local log
+  let loge = document.createElement('pre');
+  pipe_el.appendChild(loge);
 
-export function create_receiver(user_el, channel, encryptor) {
-  create_observer(user_el);
+  function log (msg)  {
+    for (var i = 0, j = arguments.length; i < j; i++){
+       // var txt = document.createTextNode(arguments[i]+' ');
+       // loge.appendChild(txt);
+        var alltext =alltext + arguments[i]+ ' -- ';
+    }
+    var br = document.createTextNode(alltext + "\n");
+    loge.appendChild(br);
+  }
+
+  const t = {
+    log: log,
+    pipe_el: pipe_el,
+    decryptor: decryptor,
+    channel: channel,
+  };
+  debug('chan in create_receiver: ', channel, t);
+  debug('cryp in create_receiver: ', decryptor, t);
+
+  //create_observer(pipe_el);
   
-  const feed = new_feed(userEl, "audio");
+  let title = document.createElement('h1');
+  title.textContent = "audioreceiver";
+  pipe_el.appendChild(title);
 
-  let curryplay = (feed) => (evt) => play_datachannel(evt, feed);
+  // create audioplayer
+  const audio = document.createElement('audio');
+  //audio.setAttribute('id', id);
+  pipe_el.appendChild(audio);
+  const v = audio;
+  // create SourceBuffer for audio element
+  let m_source = new MediaSource();
+  m_source.addEventListener("message", t.log('source ended'));
+  m_source.addEventListener("open", t.log('source open'));
+  m_source.addEventListener(
+    'sourceopen',
+    e => {
+      t.log('m_source:sourceopen', e);
+      /* TODO hardcoding the codec here sucks */
+//      console.log('audio state: ', pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
 
-  channel.addEventListener("message", curryplay(feed));
+      audio.buf = m_source.addSourceBuffer(MIMETYPE);
+    });
+  audio.src = URL.createObjectURL(m_source);
+
+  // add eventlistener to datachannel, that put's buffers into the audioelement's sourcebuffer
+  let curryplay = (t) => (evt) => play_datachannel(evt, t);
+  channel.addEventListener("message", curryplay(t));
   channel.addEventListener("open", console.log);
   channel.addEventListener("close", console.log);
+
+  audio.autoplay = true;
+  audio.controls = true;
+  // set to playing?
 }
 
 
