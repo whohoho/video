@@ -15,19 +15,19 @@
     </style>
 
     <!-- Adapter.js from Google, try to fix old/broken browsers -->
-    <script src="adapter.js"></script>
+<!--    <script src="adapter.js"></script> --?
 
     <!-- Janus client library -->
-    <script src="bundle.js"></script>
+    <!--    <script src="bundle.js"></script> -->
 
     <!-- Datachannels with janux -->
-    <script src="datachannels.js"></script>
+    <!--    <script src="datachannels.js"></script> -->
 
     <!-- HushPipe crypto library -->
     <script src="crypto.js"></script>
 
     <!-- HushPipe business logic -->
-    <script src="hushpipe.js"></script>
+    <script src="hushpipe.js" type="module"></script>
 
   </head>
   <body>
@@ -86,7 +86,7 @@
 
     <!-- Demo code file: -->
     <script>
-      hush_onload();
+      //window.hush_onload();
     </script>
 
   </body>

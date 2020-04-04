@@ -33,4 +33,6 @@ services:
     volumes:
       - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
       - ./http:/www/static:ro
+      - ./mime.types:/etc/nginx/mime.types
+      - ./keys:/opt/certs
 

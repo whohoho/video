@@ -1,6 +1,14 @@
 /* Ask for fewer silent errors: */
 'use strict';
 
+import * as audiopipe from "./pipe_mod.js";
+//import * as dc from "./datachannels.js";
+import { create_sender } from "./pipe_mod.js";
+import * as dc from "./datachannels.js";
+import "./adapter.js";
+import "./bundle.js";
+
+
 let $ = a => document.querySelector(a);
 
 let hush_key; /* Key used to encrypt/decrypt */
@@ -78,7 +86,7 @@ hush_newroom()
 }
 
 // takes datachannel event + feed element (div with 1 video inside)
-async function hush_play_datachannel(evt, feed) {
+export async function hush_play_datachannel(evt, feed) {
 	 //console.log("new video buffer: ", evt, feed);
 
    var uint8View = new Uint8Array(evt.data);
@@ -170,7 +178,10 @@ hush_camera_record()
 	   * our own payload, but this way we can check that our encryption
 	   * worked as expected.
 	   */
-	  await hush_play_video(ciphertext, hush_camera_loopback);
+
+    const feed = hush_new_feed($('#myface'), "video_high");
+	  await hush_play_video(ciphertext, feed);
+
       }
   }
   async function camera_works(s){
@@ -231,7 +242,7 @@ hush_camera_resume()
 /*
  * Call with $('#friends') or $('#myface')
  */
-function
+export function
 hush_new_feed(where, id)
 {
     console.log('getting feed: ', where, id);
@@ -336,3 +347,6 @@ hush_onload()
 	, 1000);
 
 }
+
+window.addEventListener("load", hush_onload());
+export default hush_onload

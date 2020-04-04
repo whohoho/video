@@ -16,20 +16,29 @@ http {
     ssl_session_timeout 10m;
 
     server {
-        listen 80;
-
-        # Uncomment these lines to enable SSL.
-        # Update the ssl paths with your own certificate and private key.
+        listen 443 ssl;
         # listen 443 ssl;
-        # ssl_certificate     /opt/certs/example.com.crt;
-        # ssl_certificate_key /opt/certs/example.com.key;
+        ssl_certificate     /opt/certs/server.public.certificate;
+        ssl_certificate_key /opt/certs/server.secret.key;
+        include mime.types;
+        default_type application/octet-stream;
 
         root /www/static;
         location / {
             autoindex on;
-
-            #alias /www/static;
         }
 
+    }
+
+    server {
+        listen 80;
+
+        include mime.types;
+        default_type application/octet-stream;
+
+        root /www/static;
+        location / {
+            autoindex on;
+        }
     }
 }
