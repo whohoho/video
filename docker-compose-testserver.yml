@@ -7,7 +7,6 @@ services:
     build:
       context: .
       dockerfile: janus.dockerfile
-    container_name: hushjanus
     volumes:
       - ./janus/etc/janus/:/opt/janus/etc/janus/
       - ./keys:/opt/keys/
@@ -17,7 +16,7 @@ services:
       - 8081:8081
       - 8188:8188
 
-  http-server:
+  hush-http-server:
     image: nginx
     ports:
       - 9443:443
@@ -28,3 +27,7 @@ services:
       - ./mime.types:/etc/nginx/mime.types
       - ./keys:/opt/certs
 
+networks:
+  default:
+    external:
+      name: sdnet
