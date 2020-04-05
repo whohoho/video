@@ -27,6 +27,15 @@ services:
       - ./mime.types:/etc/nginx/mime.types
       - ./keys:/opt/certs
 
+   #docker run -d -p 3478:3478 -p 49152-65535:49152-65535/udp instrumentisto/coturn
+  coturn:
+    image: instrumentisto/coturn
+    ports:
+      - 3478:3478
+      - 49152-65535:49152-65535/udp 
+    network_mode: "host"
+
+
 networks:
   default:
     external:
