@@ -1,9 +1,30 @@
 
+const mimetypes = [
+'video/webm',
+'video/webm;codecs=vp8',
+'video/webm;codecs=vp9',
+'video/webm;codecs=vp8.0',
+'video/webm;codecs=vp9.0',
+'video/webm;codecs=h264',
+'video/webm;codecs=H264',
+'video/webm;codecs=avc1',
+'video/webm;codecs=vp8,opus',
+'video/WEBM;codecs=VP8,OPUS',
+'video/webm;codecs=vp9,opus',
+'video/webm;codecs=vp8,vp9,opus',
+'video/webm;codecs=h264,opus',
+'video/webm;codecs=h264,vp9,opus',
+'video/x-matroska;codecs=avc1',
+'audio/webm',
+'audio/webm;codecs=opus',
+];
+
 
 const TYPE = 'audio';
 
 const CAPTURE_CONSTRAINTS = {audio: true};
-const MIMETYPE = 'audio/webm;codecs=opus';
+//const MIMETYPE = 'audio/webm;codecs=opus';
+const MIMETYPE = 'video/webm;codecs=vp8,vorbis'
 const REC_MS = 10;
 const RECOPT = { 
         audioBitsPerSecond :  64000,
@@ -53,11 +74,12 @@ function mediaSource_sourceopen (evt) {
 //    buffer.mode = 'sequence';
       buffer.mode = 'segments';
 
+  /*
     buffer.addEventListener('updatestart', function(evt) { console.log('updatestart: ' + evt.target); });
     buffer.addEventListener('update', function(evt) { console.log('update: ' + evt.target); });
     buffer.addEventListener('updateend', function(evt) { console.log('>>>updateend: ', evt.target.readyState, evt);  });
     buffer.addEventListener('abort', function(e) { console.log('abort: ', evt.target); });
-    
+   */ 
     // curry the callback, so it know what sourcebuffer it uses
     let sb_callback = (b) => (evt) => test_data_callback(evt, b);
     //sb_callback(buffer)('test');
@@ -100,9 +122,27 @@ function handleMediaEl_init(evt) {
 
 }
 
+function determine_mime(){
+  const file = "big-buck-bunny_trailer.webm";
+  const v = document.createElement('video');
+
+  document.body.appendChild(v);
+  v.autoplay;
+  v.src = file;
+  v.play();
+  console.log(v.cache_);
+  console.log(v.videoTracks, v.audioTracks);
+
+
+}
+//window.addEventListener("load", determine_mime());
+
+
+
 // tests player with a file, normally would be the readfromdatachannel function
 function test_data_callback(evt, sourceBuffer) {
   //console.log('test_dat_callback', evt, sourceBuffer)
+
   var oReq = new XMLHttpRequest();
   oReq.open("GET", "big-buck-bunny_trailer.webm", true);
   oReq.responseType = "arraybuffer";
@@ -152,7 +192,7 @@ window.addEventListener("load", play_testfile());
 
 // just for testing
 function handleEvent(evt) {
-  console.log('debug event: ', evt);
+//  console.log('debug event: ', evt);
 }
 
 export function init_player(pipe_el, data_callback) {
