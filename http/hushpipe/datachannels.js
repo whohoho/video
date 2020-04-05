@@ -25,6 +25,7 @@ const PEER_CONNECTION_CONFIG = {
 };
 
 // deal with errors from janus
+/*
 function isError(signal) {
   console.log("janus error signal: ", signal);
 
@@ -34,11 +35,7 @@ function isError(signal) {
       signal.plugindata.data.success === false;
   return isPluginError || Minijanus.JanusSession.prototype.isError(signal);
 }
-
-// deal with messages from janus
-function receiveMsg(session,ev) {
-  session.receive(JSON.parse(ev.data))
-}
+*/
 
 // connect to janus (the SFU server)
 export function janus_connect(ctx, server) {
@@ -46,14 +43,20 @@ export function janus_connect(ctx, server) {
 
   var ws = new WebSocket(server, "janus-protocol");
   var session = ctx.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
-  session.isError = isError;
+  // FIXME, what does this do?? // session.isError = isError;
+  //
+
+  // deal with websocket messages from janus
+  function receiveMsg(session,ev) {
+    session.receive(JSON.parse(ev.data))
+  }
   ws.addEventListener("message", ev => receiveMsg(session,ev));
 
   ws.addEventListener("open", (socket) => {
 
     ctx.session.create()
     .then( function pub (something) {
-        console.log("ctx in janus_connect: ", ctx);
+        //console.log("ctx in janus_connect: ", ctx);
         attachPublisher(ctx);
     }).then(x => { ctx.publisher = x; }, err => console.error("Error attaching publisher: ", err));
   });
@@ -63,7 +66,7 @@ export function janus_connect(ctx, server) {
 export function getUserEl(userId) {
   const elid = "hushpipe_user_" + userId;
   const users = document.getElementById('friends');
-  console.log(users);
+  //console.log(users);
   if (document.getElementById(elid)) {
     // user is already known
     return document.getElementById(elid);
@@ -85,8 +88,14 @@ export function getUserEl(userId) {
 function addUser(ctx, userId) {
   //console.log("ctx in addUser: ", ctx);
 
+  if (document.getElementById(userId)) {
+    // user is already known
+    return true;
+  }
+ 
   console.info("Adding user " + userId + ".");
   const elem = getUserEl(userId);
+
   return attachSubscriber(ctx, userId)
     .then(x =>   { ctx.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
 }
@@ -186,30 +195,68 @@ function showStatus (msg) {
 async function attachPublisher(ctx) {
   console.info("Attaching publisher for session: ", ctx.session);
  
-  console.log('room: ', ctx.roomId, 'ctx: ', ctx);
+  //console.log('room: ', ctx.roomId, 'ctx: ', ctx);
   janusconn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
   var handle = new Minijanus.JanusPluginHandle(ctx.session);
   associate(janusconn, handle, "attach publisher");
-  
+  const friends = document.getElementById("friends")
+ 
   // Handle all of the join and leave events.
   handle.on("event", ev => {
     var data = ev.plugindata.data;
+  
     if (data.event == "join" && data.room_id == ctx.roomId) {
-      console.log('join event: ', data)
+      //console.log('join event: ', data)
       addUser(ctx, data.user_id);
     } else if (data.event == "leave" && data.room_id == ctx.roomId) {
       removeUser(ctx, data.user_id);
     } else if (data.event == "data") {
-      console.log(data);
+      //console.log(data);
     } else if (!data.room_id == ctx.roomId) {
       throw "data.room_id != ctx.roomId";
     } else if (data.response) {
-      console.log('response event: ', data);
+      //console.log('response event: ', data);
+      if (data.response.users) {
+        //userlist for room, check if it is for room we think we are in:
+        //console.log('userlist: ', data.response.users, ctx.roomId);
+        if( data.response.users[ctx.roomId] ) {
+          console.log('correct room, now checking if users match');
+            
+            //var occupants = reply.plugindata.data.response.users[ctx.roomId] || [];
+            // here is where all users are created when you initially join the room
+            //await Promise.all(occupants.map(userId => addUser(ctx, userId)));
+            data.response.users[ctx.roomId].forEach(function ( user ) {
+              //console.log(user);
+              addUser(ctx, user);
+            });
+
+        } else { // wrong room id
+    /* 
+          while (friends.firstChild) {
+            // TODO: call a cleanup function on each friend
+            console.log('removing all friends')
+            friends.removeChild(friends.lastChild);
+          }
+*/
+        } // wrong room id
+      }
     } else {
-      console.log('unhandled event: ', ev);
+
+      if (ev.jsep && ev.jsep.type == "offer") {
+        console.log('jsep offer, handled in other place');
+      } else {
+
+        if (ev.jsep) {
+          console.log('jsep event, but not offer', ev);
+        } else {
+
+          console.log('unhandled event: ', ev);
+        }
+      }
+      
       // Some events get handled in the associate eventhandler
-      //throw "unhandled event";
-    }
+  }     //throw "unhandled event";
+    
   });
 
   await handle.attach("janus.plugin.sfu")
@@ -221,39 +268,33 @@ async function attachPublisher(ctx) {
   // this is the channel we gonna publish video on
   ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
-  const audiosend_el = document.getElementById('audiosender');
+  const myface = document.getElementById('myface');
+  const audiosend_el = myface.appendChild(document.createElement('div'));
+  //const audiosend_el = document.getElementById('audiosender');
 
   const audioChannel = newDataChannel("audio_" + ctx.user_id);
   audiopipe.create_sender(audiosend_el, audioChannel, ctx.encryptor);
 
   await waitForEvent("webrtcup", handle);
+
   showStatus(`Joining room ${ctx.roomId}...`);
 
-  console.log("user: ", ctx.user_id, "room: ", ctx.roomId);
- 
-  //try {
+  //console.log("user: ", ctx.user_id, "room: ", ctx.roomId);
+
+  // join the room ourselves
     const msg ={
       kind: "join",
       room_id: ctx.roomId,
       user_id: ctx.user_id,
       subscribe: { notifications: true, data: true }
     }
-    console.log(msg);
+    //console.log(msg);
     const reply = await handle.sendMessage(msg);
-  // } catch(err) {
-  //  console.log("err in reply: ", err); 
-  //}
 
-
-  showStatus(`Subscribing to others in room ${ctx.roomId}`);
-  var occupants = reply.plugindata.data.response.users[ctx.roomId] || [];
-  // here is where all users are created when you initially join the room
-  await Promise.all(occupants.map(userId => addUser(ctx, userId)));
-
-  // returns handle + rtcpeerconn + videoChannel to send on
   return  { handle, janusconn};
 }
 
+// creating all the channels for friend
 function attachSubscriber(ctx, otherId) {
   console.info("Attaching subscriber to " + otherId + " for session: ", ctx.session);
   var conn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);

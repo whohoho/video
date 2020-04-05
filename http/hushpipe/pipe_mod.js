@@ -113,8 +113,8 @@ async function play_datachannel(evt, t) {
 // takes encrypted uint8array + feed element (div with 1 video inside)
 async function play(ciphertext, t) {
   // console.log('encryptee: ', ciphertext, 'on feed: ' , t.pipe_el); 
-   let v = t.pipe_el.getElementsByTagName(TYPE)[0];
-  console.log('audio state: ', t.pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
+  // let v = t.pipe_el.getElementsByTagName(TYPE)[0];
+  //console.log('audio state: ', t.pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
 
     try {
    var plain = await t.decryptor(ciphertext);
@@ -123,10 +123,13 @@ async function play(ciphertext, t) {
       console.log('decryption failed (hush_play): ', err, ciphertext, t.pipe_el);
       return;
     }
-
-  const videl = t.pipe_el.getElementsByTagName('audio')[0]
-    videl.buf.appendBuffer(plain);
-	  videl.play();
+    if (t.buffer) {
+      if (t.buffer.updating || t.queue.length > 0) {
+        t.queue.push(plain);
+      } else {
+        t.buffer.appendBuffer(plain);
+      }
+    }
 }
 
 
@@ -196,6 +199,9 @@ export function create_receiver(pipe_el, channel, decryptor) {
     pipe_el: pipe_el,
     decryptor: decryptor,
     channel: channel,
+    buffer: undefined, 
+    queue: [], // put shit that can't be played now
+
   };
   debug('chan in create_receiver: ', channel, t);
   debug('cryp in create_receiver: ', decryptor, t);
@@ -210,32 +216,113 @@ export function create_receiver(pipe_el, channel, decryptor) {
   const audio = document.createElement('audio');
   //audio.setAttribute('id', id);
   pipe_el.appendChild(audio);
-  const v = audio;
+  const me = audio;
   // create SourceBuffer for audio element
-  let m_source = new MediaSource();
+  if (! 'MediaSource' in window && MediaSource.isTypeSupported(MIME)) {
+    console.log('unsupported format');
+    throw "format not supported";
+  }
+
+    let mediaSource = new MediaSource();
+    audio.src = window.URL.createObjectURL(mediaSource);
+
+
+  ///...
+  mediaSource.addEventListener('sourceopen', function(e) {
+    
+    audio.autoplay = true;
+    audio.controls = true;
+    
+   /* 
+    var pp = audio.play();
+    if (audio.play() !== undefined) {
+    pp.then(_ => {
+      console.log('now playing'); 
+    })
+    .catch(error => {
+      console.log('play failed: ', error);
+    });
+    }
+    */
+    // check readystate
+    if (!mediaSource.readyState == 'open') {
+      console.log(mediaSource, mediaSource.readyState);
+      throw "we are in the sourceopen function, but readystate is not open";
+    } 
+
+    const buffer = mediaSource.addSourceBuffer(MIMETYPE);
+    t.buffer = buffer;
+    t.buffer.mode = 'sequence';
+    //t.buffer.addEventListener('updatestart', function(e) { console.log('updatestart: ' + mediaSource.readyState); });
+    //t.buffer.addEventListener('update', function(e) { console.log('update: ' + mediaSource.readyState); });
+    t.buffer.addEventListener('updateend', function(e) { 
+      //mediaSource.endOfStream();
+      audio.play();
+      //console.log('>>>updateend: ' + mediaSource.readyState); 
+    });
+    t.buffer.addEventListener('error', function(e) { 
+      t.buffer = undefined;
+      console.log('error: ' + mediaSource.readyState);
+      window.setTimeout(1000, function () {
+      let newSource = new MediaSource();
+      audio.src = window.URL.createObjectURL(newSource);
+      });
+
+    });
+    t.buffer.addEventListener('abort', function(e) { console.log('abort: ' + mediaSource.readyState); });
+    t.buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
+      if (t.queue.length > 0 && !t.buffer.updating) {
+        t.buffer.appendBuffer(t.queue.shift());
+      }
+    }); // buffer update eventlistener
+
+     // we have sourcebuffer,  add eventlistener to datachannel, that put's buffers into the audioelement's sourcebuffer
+      let curryplay = (t) => (evt) => play_datachannel(evt, t);
+      channel.addEventListener("message", curryplay(t));
+
+  }, false);
+
+  mediaSource.addEventListener('sourceopen', function(e) { console.log('sourceopen: ' + mediaSource.readyState); });
+  mediaSource.addEventListener('sourceended', function(e) { console.log('sourceended: ' + mediaSource.readyState); });
+  mediaSource.addEventListener('sourceclose', function(e) { console.log('sourceclose: ' + mediaSource.readyState); });
+  mediaSource.addEventListener('error', function(e) { 
+    console.log('error: ' + mediaSource.readyState);
+    /*
+    console.log("audio Error " + audio.error.code + "; details: " + videoElement.error.message);
+    audio.buf = m_source.addSourceBuffer(MIMETYPE);
+    audio.buf.mode = 'sequence';
+    */ 
+  });
+
+      ///....
+  /*
   m_source.addEventListener("message", t.log('source ended'));
   m_source.addEventListener("open", t.log('source open'));
+  
   m_source.addEventListener(
     'sourceopen',
     e => {
       t.log('m_source:sourceopen', e);
-      /* TODO hardcoding the codec here sucks */
 //      console.log('audio state: ', pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
 
-      audio.buf = m_source.addSourceBuffer(MIMETYPE);
-    });
-  audio.src = URL.createObjectURL(m_source);
+      audio.onerror = function() {
+          console.log("audio Error " + audio.error.code + "; details: " + videoElement.error.message);
+          audio.buf = m_source.addSourceBuffer(MIMETYPE);
+          audio.buf.mode = 'sequence';
+ 
 
-  // add eventlistener to datachannel, that put's buffers into the audioelement's sourcebuffer
-  let curryplay = (t) => (evt) => play_datachannel(evt, t);
-  channel.addEventListener("message", curryplay(t));
-  channel.addEventListener("open", console.log);
+      }
+      audio.buf = m_source.addSourceBuffer(MIMETYPE);
+      audio.buf.mode = 'sequence';
+     
+ 
+    });
+    */
+
+   channel.addEventListener("open", console.log);
   channel.addEventListener("close", console.log);
 
-  audio.autoplay = true;
-  audio.controls = true;
-  // set to playing?
-}
+ }
 
 
 

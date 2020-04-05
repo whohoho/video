@@ -27,13 +27,6 @@ const HUSH_CODEC = 'video/webm;codecs=vp8';
  * https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getConstraints#Example - how to change camera
  */
 
-function
-hush_render_friends(mouseevent)
-{
-  console.log("rendering friends: ", gctx);
-}
-
-
 async function
 hush_read_key()
 {
@@ -81,7 +74,6 @@ hush_read_key()
 
     console.log('crypt functions: ', ctx.encryptor, ctx.decryptor);
 
-    ctx.debugInterval = setInterval(10, hush_render_friends(ctx));
     gctx = ctx;
     dc.janus_connect(ctx, "ws://localhost:8188");
     return true;
@@ -94,6 +86,20 @@ hush_read_key()
 async function
 hush_newroom()
 {
+
+  const senders = document.getElementById('myface');
+  while (senders.firstChild) {
+      // TODO: call a cleanup function on each sender
+      console.log('removing all senders')
+      senders.removeChild(senders.lastChild);
+    }
+
+     while (friends.firstChild) {
+      // TODO: call a cleanup function on each friend
+      console.log('removing all friends')
+      friends.removeChild(friends.lastChild);
+    }
+
     console.log('new master key');
     await crypto_new_master_key();
     console.log('new room key');
@@ -380,7 +386,7 @@ hush_onload()
     /* Check if we already have a key: */
   	if (hush_read_key()) {
   	  console.log('cool we are in an existing room');
-      console.log('hush_key: ', gctx.key)
+//      console.log('hush_key: ', gctx.key)
     } else {
     	console.log('failed reading key', e);
 	    hush_newroom();
