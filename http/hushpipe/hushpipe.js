@@ -17,9 +17,14 @@ let hush_camera_handle; /* Handle to MediaRecorder of our camera */
 let hush_camera_loopback; /* <video> element display our own camera */
 let gctx; /* TODO explain what this */
 
+let hush_my_init_segment; /* Initialization segment of our own video feed */
+
+const HUSH_CODEC = 'video/webm;codecs=vp8';
+
 /*
  * TODO check out these APIs:
  * https://www.w3.org/TR/quota-api/ - get bigger allowance for local data
+ * https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getConstraints#Example - how to change camera
  */
 
 function
@@ -32,7 +37,7 @@ hush_render_friends(mouseevent)
 async function
 hush_read_key()
 {
-//    try {
+    //    try {
     const master_key = await get_master_key_from_url();
     const keys = await crypto_derive_from_master_key(master_key);
     console.log('keys',keys);
@@ -43,7 +48,41 @@ hush_read_key()
 	+ '\n\nroom name: ' + keys.room;
   //  } catch (e) {
 //	console.log('error reading room key', e);
-  //  }
+    //  }
+
+    /*
+     * Replace connection Janus
+     */
+    if (gctx) {
+	gctx.session.destroy();
+	try { clearInterval(gctx.debugInterval);
+	    } catch(e){}
+    }
+
+   // encrypt_blob(key, blob)
+    let encryptor = (key) => (blob) => encrypt_blob(key, blob);
+  //decrypt_uint8array(key, buf)
+    let decryptor = (key) => (buf) => decrypt_uint8array(key, buf);
+
+    let ctx = {
+    	user_id: new String(Math.floor(Math.random() * (1000000001))),
+      session: null,
+      publisher: null,
+      subscribers: {},
+      videoChannel: null,
+      messages: [],
+    	roomId: hush_room,
+      key: hush_read_key(),
+      encryptor: encryptor(hush_key),
+      decryptor: decryptor(hush_key),
+
+    };
+
+    console.log('crypt functions: ', ctx.encryptor, ctx.decryptor);
+
+    ctx.debugInterval = setInterval(10, hush_render_friends(ctx));
+    gctx = ctx;
+    dc.janus_connect(ctx, "ws://localhost:8188");
 }
 
 
@@ -67,23 +106,69 @@ export async function hush_play_datachannel(evt, feed) {
    hush_play_video(uint8View, feed)
 }
 
-// takes encrypted uint8array + feed element (div with 1 video inside)
-async function hush_play_video(ciphertext, feed) {
-   //console.log('encrypted: ', ciphertext, 'on feed: ' , feed); 
-   let v = feed.getElementsByTagName('video')[0];
-  console.log('vid state: ', feed.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
+async function
+hush_append_buffer(video_element, plaintext)
+{
+    try {
+	/* be optimistic */
+	video_element.buf.appendBuffer(plaintext);
+	return;
+    } catch (e) {
+	console.log('appendBufferfailed on',video_element, e);
+	//video_element.play();
+    }
+
+    if (!video_element.buf) {
+	console.log('this video element has no buf (are we in the process of making new?)', video_element);
+	throw 'video has no buf';
+    }
+    if (video_element.buf.mode != 'segments')
+	throw 'video is not segments WHAT\nx\nx\nx';
+    if (video_element.buf.error) // then we should wait
+	throw 'video is ERRORed WHAT\ngx\nx\nx';
+
+    if (video_element.buf.updating){
+	/*
+	 * Technically speaking we should wait, instead we just drop frames
+	 */
+	video_element.buf.addEventListener('updateend', function () {
+	    //try { video_element.buf.appendBuffer(plaintext);}catch(e){}
+	}, { once: true, passive: true });
+	return;
+    }
+    // maybe look at video_element.readyState
 
     try {
-   var plain = await decrypt_uint8array(hush_key, ciphertext);
-    } catch (err) {
+	video_element.buf.appendBuffer(plaintext);
+    } catch (e) {
+	console.log('appendBufferfailed on',video_element, e);
+	//video_element.play();
+    }
+}
 
+/*
+ * takes encrypted uint8array + feed element (div with 1 video inside)
+ * decrypts, adds the plaintext to the video buffer
+ */
+async function
+hush_play_video(ciphertext, feed)
+{
+    //console.log('encrypted: ', ciphertext, 'on feed: ' , feed);
+    const v = feed.getElementsByTagName('video')[0];
+    console.log(
+	`vid state: ${feed.parentElement.id} , v.currentTime:`,v.currentTime,
+	`, v.buffered:`, v.buffered,
+	`, v.currentSrc:${v.currentSrc}, v.duration:${v.duration}, v.ended:${v.ended}, v.error:`,
+	v.error, `, v.networkState:${v.networkState}`);
+
+    try {
+	var plain = await decrypt_uint8array(hush_key, ciphertext);
+    } catch (err) {
       console.log('decryption failed (hush_play_video): ', err, ciphertext, feed);
       return;
     }
 
-  const videl = feed.getElementsByTagName('video')[0]
-    videl.buf.appendBuffer(plain);
-	  videl.play();
+    await hush_append_buffer(v, plain);
 }
 
 function
@@ -109,8 +194,13 @@ hush_camera_record()
 //  userEl.chan_video_high = highVideoChannel;
       //const feed = hush_new_feed(userEl, "video_high");
       const feed = hush_new_feed($('#myface'), "video_high");
+/*
+	   * TODO this is a little bit wasteful since we are decrypting
+	   * our own payload, but this way we can check that our encryption
+	   * worked as expected.
+	   */
 
-      hush_play_video(ciphertext, feed)
+     await hush_play_video(ciphertext, feed)
       }
   }
   async function camera_works(s){
@@ -119,12 +209,25 @@ hush_camera_record()
 
       hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
 
-      hush_camera_handle = new MediaRecorder(s);
+      hush_camera_handle = new MediaRecorder(s, {codec: HUSH_CODEC});
       hush_camera_handle.ondataavailable = please_encrypt;
-      hush_camera_handle.start(1000);
+      hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
+    let constraints = {
+	video: {
+	    frameRate: { ideal: 20, max: 25, } /* or just video:true*/
+	    // facingMode: 'user' // use selfie-cam, !shoot-my-swimming-pool-cam
+	},
+	/* audio: {
+	   noiseSuppression: true,
+	   echoCancellation: true,
+	   // sampleRate: 99999, /// Hz
+	   //latency: 99.99, /// seconds
+	}
+	*/
+    }
   var m = navigator.getUserMedia(
-      {video:true},
+      constraints,
       camera_works,
       e=>console.log('navigator.getUserMedia err:',e)
   );
@@ -169,6 +272,17 @@ hush_new_pipe(where, id)
     }
 }
 
+function
+hush_camera_pause()
+{
+    try { hush_camera_handle.pause(); } catch (e) {}
+}
+
+function
+hush_camera_resume()
+{
+    try { hush_camera_handle.resume(); } catch (e) {}
+}
 
 /*
  * Call with $('#friends') or $('#myface')
@@ -197,27 +311,53 @@ hush_new_feed(where, id)
       let title = document.createElement('h1');
       title.textContent = "video_high: " + id;
       div.appendChild(title);
-      const vid = document.createElement('video');
-      vid.setAttribute('id', id);
-      div.appendChild(vid);
+	const vid = document.createElement('video');
+	vid.setAttribute('id', id);
+	div.appendChild(vid);
 
-     let m_source = new MediaSource();
-      m_source.addEventListener(
-    'sourceopen',
-    e => {
-        console.log('m_source:sourceopen', e);
-        /* TODO hardcoding the codec here sucks */
-        vid.buf = m_source.addSourceBuffer('video/webm;codecs=vp8');
-    });
-      vid.src = URL.createObjectURL(m_source);
-      // FIXME: readonly property vid.buffered = false; /* TODO */
+	function set_source(video) {
+	    let m_source = new MediaSource();
+	    m_source.mode = 'segments';
+	    m_source.addEventListener(
+		'sourceopen',
+		e => {
+		    console.log('m_source:sourceopen', e);
+		    /* TODO hardcoding the codec here sucks */
+		    vid.buf = m_source.addSourceBuffer(HUSH_CODEC);
+		}, {once: true, passive:true});
+	    m_source.addEventListener(
+		'sourceended', e => {
+		    console.log('sourceended:', m_source, e);
+		}, {once: true, passive:true});
+	    video.src = URL.createObjectURL(m_source);
+	}
 
-      where.appendChild(div);
+	/*
+	 * When it errors we try again:
+	 */
+	vid.addEventListener(
+	    'error',
+	    (e) => {
+		console.log('new video source because video erred', vid);
+		set_source(vid);
+	    }, {once: true, passive:true});
+	// FIXME: readonly property vid.buffered = false; /* TODO */
 
-    //vid.play();
-    vid.autoplay = true;
-    vid.controls = true;
-      console.log('this should be the feed div (id="div_video_high")', div)
+	/*
+	 * Trigger error to make sure we have a source ready:
+	 */
+	set_source(vid);
+	try { vid.play(); } catch (e){
+	    console.log('play fail', vid, e);
+	}
+
+	where.appendChild(div);
+
+	try { vid.play(); }
+	catch(e){ console.log('vid.play() did not fly', vid); }
+	vid.autoplay = true;
+	vid.controls = true;
+	console.log('this should be the feed div (id="div_video_high")', div)
       return div;
     }
 }
@@ -231,6 +371,8 @@ hush_onload()
     $('#hush_camera_record').onclick = hush_camera_record;
     $('#hush_camera_stop').onclick = hush_camera_stop;
     $('#hush_render_friends').onclick = hush_render_friends;
+    $('#hush_camera_pause').onclick = hush_camera_pause;
+    $('#hush_camera_resume').onclick = hush_camera_resume;
 
     /* Check if we already have a key: */
     try {
@@ -240,39 +382,23 @@ hush_onload()
 	console.log('failed reading key', e);
 	hush_newroom();
     }
+
+  // this also makes ctx
     await hush_read_key();
     console.log('hush_key: ', hush_key)
 
-   // encrypt_blob(key, blob)
-    let encryptor = (key) => (blob) => encrypt_blob(key, blob);
-  //decrypt_uint8array(key, buf)
-    let decryptor = (key) => (buf) => decrypt_uint8array(key, buf);
 
+    
+  console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
 
-
-    let ctx = {
-    	user_id: new String(Math.floor(Math.random() * (1000000001))),
-      session: null,
-      publisher: null,
-      subscribers: {},
-      videoChannel: null,
-      messages: [],
-      roomId: "42",
-      key: hush_read_key(),
-      encryptor: encryptor(hush_key),
-      decryptor: decryptor(hush_key),
-
-    };
-    console.log('crypt functions: ', ctx.encryptor, ctx.decryptor);
-    gctx = ctx;
-    dc.janus_connect(ctx, "ws://localhost:8188");
-
-
-
-    console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
-
-    setInterval(10, hush_render_friends(ctx));
-  console.log('wtf');
+    /*
+     * Auto-play shit:
+     */
+    setInterval(
+	() => document.querySelectorAll('video').forEach(e=> {
+	    try {e.play();}catch(e){}
+	})
+	, 1000);
 
 }
 
