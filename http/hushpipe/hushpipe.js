@@ -72,7 +72,7 @@ hush_read_key()
       videoChannel: null,
       messages: [],
     	roomId: hush_room,
-      key: hush_read_key(),
+      key: hush_key,
       encryptor: encryptor(hush_key),
       decryptor: decryptor(hush_key),
 
@@ -210,6 +210,7 @@ hush_camera_record()
       hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
 
       hush_camera_handle = new MediaRecorder(s, {codec: HUSH_CODEC});
+      hush_camera_handle.mode = 'sequence';
       hush_camera_handle.ondataavailable = please_encrypt;
       hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
@@ -394,13 +395,14 @@ hush_onload()
     /*
      * Auto-play shit:
      */
+  /*
     setInterval(
 	() => document.querySelectorAll('video').forEach(e=> {
 	    try {e.play();}catch(e){}
 	})
 	, 1000);
-
+*/
 }
 
 window.addEventListener("load", hush_onload());
-export default hush_onload
+//export default hush_onload
