@@ -37,18 +37,19 @@ hush_render_friends(mouseevent)
 async function
 hush_read_key()
 {
-    //    try {
-    const master_key = await get_master_key_from_url();
-    const keys = await crypto_derive_from_master_key(master_key);
-    console.log('keys',keys);
-    hush_key = keys.e2e;
-    hush_room = keys.room;
-    $('#hush_room_key_label').innerText =
-	'\nmaster key: ' + document.location.hash
-	+ '\n\nroom name: ' + keys.room;
-  //  } catch (e) {
-//	console.log('error reading room key', e);
-    //  }
+    try {
+      const master_key = await get_master_key_from_url();
+      const keys = await crypto_derive_from_master_key(master_key);
+      console.log('keys',keys);
+      hush_key = keys.e2e;
+      hush_room = keys.room;
+      $('#hush_room_key_label').innerText =
+    '\nmaster key: ' + document.location.hash
+    + '\n\nroom name: ' + keys.room;
+   } catch (e) {
+	  console.log('error reading room key', e);
+     return false;
+   }
 
     /*
      * Replace connection Janus
@@ -83,6 +84,7 @@ hush_read_key()
     ctx.debugInterval = setInterval(10, hush_render_friends(ctx));
     gctx = ctx;
     dc.janus_connect(ctx, "ws://localhost:8188");
+    return true;
 }
 
 
@@ -376,33 +378,25 @@ hush_onload()
     $('#hush_camera_resume').onclick = hush_camera_resume;
 
     /* Check if we already have a key: */
-    try {
-	hush_read_key();
-	console.log('cool we are in an existing room');
-    } catch (e) {
-	console.log('failed reading key', e);
-	hush_newroom();
+  	if (hush_read_key()) {
+  	  console.log('cool we are in an existing room');
+      console.log('hush_key: ', gctx.key)
+    } else {
+    	console.log('failed reading key', e);
+	    hush_newroom();
     }
 
-  // this also makes ctx
-    await hush_read_key();
-    console.log('hush_key: ', hush_key)
-
-
-    
-  console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
+    console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
 
     /*
      * Auto-play shit:
      */
-  /*
     setInterval(
 	() => document.querySelectorAll('video').forEach(e=> {
 	    try {e.play();}catch(e){}
 	})
 	, 1000);
-*/
+
 }
 
 window.addEventListener("load", hush_onload());
-//export default hush_onload

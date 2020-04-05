@@ -26,6 +26,8 @@ const PEER_CONNECTION_CONFIG = {
 
 // deal with errors from janus
 function isError(signal) {
+  console.log("janus error signal: ", signal);
+
   var isPluginError =
       signal.plugindata &&
       signal.plugindata.data &&
