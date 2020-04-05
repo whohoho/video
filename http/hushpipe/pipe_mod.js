@@ -214,6 +214,9 @@ export function create_receiver(pipe_el, channel, decryptor) {
 
   // create audioplayer
   const audio = document.createElement('audio');
+  audio.autoplay = true;
+  audio.controls = true;
+    
   //audio.setAttribute('id', id);
   pipe_el.appendChild(audio);
   const me = audio;
@@ -225,14 +228,30 @@ export function create_receiver(pipe_el, channel, decryptor) {
 
     let mediaSource = new MediaSource();
     audio.src = window.URL.createObjectURL(mediaSource);
-
+   
 
   ///...
+  
+  mediaSource.addEventListener('sourceclose', function(e) {
+    console.log('source closed', e);
+    var src = e.target;
+    audio.src = undefined;
+    let ms = new MediaSource();
+    const newaudio = document.createElement('audio');
+    newaudio.autoplay = true;
+    newaudio.controls = true;
+   
+    newaudio.src = window.URL.createObjectURL(ms);
+    audio.parentNode.replaceChild(newaudio, audio);
+
+    audio.load();
+
+  });
+ 
+
   mediaSource.addEventListener('sourceopen', function(e) {
     
-    audio.autoplay = true;
-    audio.controls = true;
-    
+   
    /* 
     var pp = audio.play();
     if (audio.play() !== undefined) {
@@ -251,28 +270,27 @@ export function create_receiver(pipe_el, channel, decryptor) {
     } 
 
     const buffer = mediaSource.addSourceBuffer(MIMETYPE);
-    t.buffer = buffer;
-    t.buffer.mode = 'sequence';
+    buffer.mode = 'sequence';
     //t.buffer.addEventListener('updatestart', function(e) { console.log('updatestart: ' + mediaSource.readyState); });
     //t.buffer.addEventListener('update', function(e) { console.log('update: ' + mediaSource.readyState); });
-    t.buffer.addEventListener('updateend', function(e) { 
+    buffer.addEventListener('updateend', function(e) { 
       //mediaSource.endOfStream();
-      audio.play();
-      //console.log('>>>updateend: ' + mediaSource.readyState); 
+      //audio.play();
+      console.log('>>>updateend: ' + mediaSource.readyState); 
     });
-    t.buffer.addEventListener('error', function(e) { 
-      t.buffer = undefined;
-      console.log('error: ' + mediaSource.readyState);
+    buffer.addEventListener('error', function(e) { 
+      buffer = undefined;
+      console.log('error: ' + mediaSource.readyState, mediaSource, audio, buffer);
       window.setTimeout(1000, function () {
       let newSource = new MediaSource();
       audio.src = window.URL.createObjectURL(newSource);
       });
 
     });
-    t.buffer.addEventListener('abort', function(e) { console.log('abort: ' + mediaSource.readyState); });
-    t.buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
-      if (t.queue.length > 0 && !t.buffer.updating) {
-        t.buffer.appendBuffer(t.queue.shift());
+    buffer.addEventListener('abort', function(e) { console.log('abort: ' + mediaSource.readyState); });
+    buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
+      if (t.queue.length > 0 && !buffer.updating) {
+        buffer.appendBuffer(queue.shift());
       }
     }); // buffer update eventlistener
 
