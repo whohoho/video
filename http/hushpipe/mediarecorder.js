@@ -48,49 +48,6 @@ chunk_rec_callback(blob_event)
       debug_filecount += 1;
       utils.saveBlob(blob_event.data, "chunk_video_" + debug_filecount + ".webm", false);
     }
-/*  chunks is an array of Uint8Array
-    if ((chunks.length > 2 && ((parseInt(chunks.length / 10)) % 3 > 0)
-	)
-	|| vid.msrc.readyState == 'ended') {
-	'skip this';
-    } else {
-	function doappend()
-	{
-	    if (vid.msrc.sourceBuffers[0]) {
-		if (blob_event.timecode > latest) {
-		    latest = blob_event.timecode;
-		    console.log('adding', vid.msrc.readyState, blob_event.timecode);
-		    vid.msrc.sourceBuffers[0].appendBuffer(chunk);
-		} else {
-		    console.log('ttiii\ni\nh\ns\nsn\ns');
-		}
-	    } else {
-		console.log('for some\n\nx\n\nx\n\n\nx fucking reason no buffer');
-	    }
-	}
-	if (vid.msrc.updating) {
-	    vid.msrc.addEventListener(
-		'updateend',
-		e => { doappend(); },
-		{once:true,passive:true}
-	    );
-	} else {
-	    doappend();
-	}
-    }
-
-	//vid.msrc.sourceBuffers[0].appendBuffer(chunk);
-
-	//hush_camera_handle.stop();
-	//let b = new Blob(chunks, {type: HUSH_CODEC});
-	//let url = URL.createObjectURL(b);
-	//let a = document.createElement('a');
-	//a.href = url;
-	//a.download ='test.webm';
-	//document.body.appendChild(a);
-	//a.click();
-//    }
-*/
 }
 
 async function
