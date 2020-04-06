@@ -34,7 +34,7 @@ const RECOPT = {
  	    };
 
 
- function mediaSource_sourceclose (e) {
+ function mediaSource_sourceclose (e, mediaEl) {
    // mediasource died, create a new player -> mediasource -> sourcebuffer
     console.log('source closed', e);
    /*
@@ -62,14 +62,14 @@ function sourceBuffer_error (evt) {
       });
 */
 }
-function mediaSource_sourceopen (evt) {
+function mediaSource_sourceopen (evt, mediaEl) {
     
     // check readystate
     if (!evt.target.readyState == 'open') {
       console.log(evt.target, evt.target.readyState);
       throw "we are in the sourceopen function, but readystate is not open";
     } 
-
+    console.log('should be audio elem', evt);
     const buffer = evt.target.addSourceBuffer(MIMETYPE);
 //    buffer.mode = 'sequence';
       buffer.mode = 'segments';
@@ -81,11 +81,13 @@ function mediaSource_sourceopen (evt) {
     buffer.addEventListener('abort', function(e) { console.log('abort: ', evt.target); });
    */ 
     // curry the callback, so it know what sourcebuffer it uses
-    let sb_callback = (b) => (evt) => test_data_callback(evt, b);
+    let sb_callback = (mediaEl) => (b) => (evt) => test_data_callback(evt, b, mediaEl);
+  console.log('this is sb_callback mediael:', sb_callback, mediaEl);
+//    console.log(sb_callback(mediaEl)(buffer));
     //sb_callback(buffer)('test');
     //test_data_callback('tst', buffer)
     // call testdatacallback every second
-    window.setInterval(sb_callback(buffer),100);
+    window.setInterval(sb_callback(mediaEl)(buffer),100);
     
 /*
   buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
@@ -115,9 +117,14 @@ function handleMediaEl_init(evt) {
   }
 
   let mediaSource = new MediaSource();
-  mediaSource.addEventListener('sourceclose', mediaSource_sourceclose);
-  mediaSource.addEventListener('sourceopen', mediaSource_sourceopen);
-  console.log(evt.target.src);
+  mediaSource.addEventListener('sourceclose', function (evt) { 
+    //FIXME: reset mediaEl.msrc ??
+    mediaSource_sourceclose(evt, evt.target)
+  });
+  mediaSource.addEventListener('sourceopen',  function (soevt) { mediaSource_sourceopen(soevt, evt.target) });
+  evt.target.msrc = mediaSource;
+  console.log('evt.target.msrc',evt.target.msrc);
+
   evt.target.src = window.URL.createObjectURL(mediaSource);
 
 }
@@ -138,20 +145,13 @@ function determine_mime(){
 //window.addEventListener("load", determine_mime());
 
 
-
-// tests player with a file, normally would be the readfromdatachannel function
-function test_data_callback(evt, sourceBuffer) {
-  //console.log('test_dat_callback', evt, sourceBuffer)
-
-  var oReq = new XMLHttpRequest();
-  oReq.open("GET", "big-buck-bunny_trailer.webm", true);
-  oReq.responseType = "arraybuffer";
-
-  oReq.onload = function (oEvent) {
-    var arrayBuffer = oReq.response;
-    if (arrayBuffer) {
-      var byteArray = new Uint8Array(arrayBuffer);
-      
+function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
+  /*
+      console.log('play buffer callback, evt',evt);
+      console.log('play buffer callback, sb',sourceBuffer);
+      console.log('play buffer callback, buf',buf);
+      console.log('play buffer callback, mediaEl',mediaEl);
+*/
       if (!sourceBuffer) {
         throw 'nonexistant sourceBuffer in data_callback';
       }
@@ -168,13 +168,65 @@ function test_data_callback(evt, sourceBuffer) {
 	        //try { video_element.buf.appendBuffer(plaintext);}catch(e){}
 	      }, { once: true, passive: true });
       } else { //not updating and no errors
-        try {
-	        sourceBuffer.appendBuffer(byteArray);
-        } catch (e) {
-          //  DOMException: Failed to execute 'appendBuffer' on 'SourceBuffer': This SourceBuffer has been removed from the parent media source.
-	        //console.log('appendBufferfailed on',sourceBuffer, e, oEvent);
-        }
+       // try {
+          // fix up the buffer
+          //  chunks is an array of Uint8Array
+          //
+          // FIXME
+          let latest = 0 ;
+          console.log(sourceBuffer, evt);
+          
+          function doappend()
+          {
+           
+            if (sourceBuffer) {
+                console.log('adding', mediaEl.msrc);
+                sourceBuffer.appendBuffer(buf);
+            } else {
+              console.log('for some\n\nx\n\nx\n\n\nx fucking reason no buffer');
+            }
+          } // doappend
+
+          if (mediaEl.updating) {
+            mediaEl.msrc.addEventListener(
+              'updateend',
+              e => { doappend(); },
+              {once:true,passive:true}
+            );
+          } else {
+            doappend();
+          } // msrc updating
+         
+          // actually try to play it
+          // sourceBuffer.appendBuffer(buf);
+
+       // } catch (e) {
+       //   //  DOMException: Failed to execute 'appendBuffer' on 'SourceBuffer': This SourceBuffer has been removed from the parent media source.
+       //   console.log('appendBufferfailed on',sourceBuffer, e, evt);
+       // }
       }
+
+
+}
+
+
+
+// tests player with a file, normally would be the readfromdatachannel function
+function test_data_callback(evt, sourceBuffer, mediaEl) {
+  // FIXME, evt is null
+//  console.log('test_dat_callback', evt,sourceBuffer, mediaEl)
+
+  var oReq = new XMLHttpRequest();
+  oReq.open("GET", "big-buck-bunny_trailer.webm", true);
+  oReq.responseType = "arraybuffer";
+
+  oReq.onload = function (oEvent) {
+    var arrayBuffer = oReq.response;
+    if (arrayBuffer) {
+      var byteArray = new Uint8Array(arrayBuffer);
+      // call the function that will actually play the buffer
+      play_buffer_callback(evt, sourceBuffer, byteArray, mediaEl);      
+
     } // if arrayBuffer
   }; // oReq onload
   oReq.send(null);
@@ -184,7 +236,7 @@ function test_data_callback(evt, sourceBuffer) {
 function play_testfile() {
 
   const el = document.getElementById('testdiv');
-  init_player(el, test_data_callback);
+  init_player(el, undefined);
 
 }
 

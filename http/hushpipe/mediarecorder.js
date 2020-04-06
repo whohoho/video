@@ -1,6 +1,8 @@
 'use strict';
 
 import * as utils from "./utils.js";
+import * as mp from "./mediaplayer.js";
+
 
 
 const TYPE = 'audio';
@@ -46,7 +48,7 @@ chunk_rec_callback(blob_event)
       debug_filecount += 1;
       utils.saveBlob(blob_event.data, "chunk_video_" + debug_filecount + ".webm", false);
     }
-/*
+/*  chunks is an array of Uint8Array
     if ((chunks.length > 2 && ((parseInt(chunks.length / 10)) % 3 > 0)
 	)
 	|| vid.msrc.readyState == 'ended') {
