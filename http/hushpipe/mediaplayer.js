@@ -1,36 +1,4 @@
-const mimetypes = [
-'video/webm',
-'video/webm;codecs=vp8',
-'video/webm;codecs=vp9',
-'video/webm;codecs=vp8.0',
-'video/webm;codecs=vp9.0',
-'video/webm;codecs=h264',
-'video/webm;codecs=H264',
-'video/webm;codecs=avc1',
-'video/webm;codecs=vp8,opus',
-'video/WEBM;codecs=VP8,OPUS',
-'video/webm;codecs=vp9,opus',
-'video/webm;codecs=vp8,vp9,opus',
-'video/webm;codecs=h264,opus',
-'video/webm;codecs=h264,vp9,opus',
-'video/x-matroska;codecs=avc1',
-'audio/webm',
-'audio/webm;codecs=opus',
-];
 
-
-const TYPE = 'audio';
-
-const CAPTURE_CONSTRAINTS = {audio: true};
-//const MIMETYPE = 'audio/webm;codecs=opus';
-const MIMETYPE = 'video/webm;codecs=vp8,vorbis'
-const REC_MS = 10;
-const RECOPT = { 
-  audioBitsPerSecond :  64000,
-  //videoBitsPerSecond : 2500000,
-  //bitsPerSecond:       2628000,
-  mimeType : MIMETYPE,
-};
 
 function mediaSource_sourceclose (e, mediaEl) {
   // mediasource died, create a new player -> mediasource -> sourcebuffer
@@ -49,9 +17,9 @@ function mediaSource_sourceopen (evt, mediaEl) {
     console.log(evt.target, evt.target.readyState);
     throw "we are in the sourceopen function, but readystate is not open";
   } 
+  console.log(mediaEl);
+  const buffer = evt.target.addSourceBuffer(mediaEl.parentNode.MIMETYPE);
 
-  const buffer = evt.target.addSourceBuffer(MIMETYPE);
-  
   buffer.mode = 'segments';
 
   //
@@ -82,8 +50,8 @@ function handleMediaEl_init(evt) {
   //    eventLog.textContent = eventLog.textContent + `${event.type}\n`;
   console.log('MediaEl_init: ', evt, evt.target);
   // check if mime is supported
-  if (! 'MediaSource' in window && MediaSource.isTypeSupported(MIME)) {
-    console.log('unsupported format', MIME);
+  if (! 'MediaSource' in window && MediaSource.isTypeSupported(evt.target.parentNode.MIMETYPE)) {
+    console.log('unsupported format', evt.target.parentNode.MIMETYPE);
     throw "format not supported";
   }
 
@@ -102,12 +70,12 @@ function handleMediaEl_init(evt) {
 
 
 function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
-  
-   //   console.log('play buffer callback, evt',evt);
-   //   console.log('play buffer callback, sb',sourceBuffer);
-   //   console.log('play buffer callback, buf',buf);
-   //   console.log('play buffer callback, mediaEl',mediaEl);
-      
+
+  //   console.log('play buffer callback, evt',evt);
+  //   console.log('play buffer callback, sb',sourceBuffer);
+  //   console.log('play buffer callback, buf',buf);
+  //   console.log('play buffer callback, mediaEl',mediaEl);
+
   if (!sourceBuffer) {
     throw 'nonexistant sourceBuffer in data_callback';
   }
@@ -154,12 +122,12 @@ function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
 
 
 
-  // tests player with a file, normally would be the readfromdatachannel function
+// tests player with a file, normally would be the readfromdatachannel function
 function test_data_callback(evt, sourceBuffer, mediaEl) {
-    // FIXME, evt is null
-    //  console.log('test_dat_callback', evt,sourceBuffer, mediaEl)
+  // FIXME, evt is null
+  //  console.log('test_dat_callback', evt,sourceBuffer, mediaEl)
 
-    var oReq = new XMLHttpRequest();
+  var oReq = new XMLHttpRequest();
   oReq.open("GET", "big-buck-bunny_trailer.webm", true);
   oReq.responseType = "arraybuffer";
 
@@ -179,7 +147,12 @@ function test_data_callback(evt, sourceBuffer, mediaEl) {
 function play_testfile() {
 
   const el = document.getElementById('testdiv');
-  init_player(el, undefined);
+  // set some config
+  el.TYPE = 'audio';
+  el.MIMETYPE = 'video/webm;codecs=vp8,vorbis';
+
+
+  const put_stuff_in_player = init_player(el);
 
 }
 
@@ -187,20 +160,21 @@ window.addEventListener("load", play_testfile());
 
 // just for testing
 function handleEvent(evt) {
-//  console.log('debug event: ', evt);
+  //  console.log('debug event: ', evt);
 }
 
 
-export function init_player(pipe_el, data_callback) {
+export function init_player(pipe_el) {
+  // define some constants
   // create log
   let loge = document.createElement('pre');
   pipe_el.appendChild(loge);
 
   function log (msg)  {
     for (var i = 0, j = arguments.length; i < j; i++){
-       // var txt = document.createTextNode(arguments[i]+' ');
-       // loge.appendChild(txt);
-        var alltext =alltext + arguments[i]+ ' -- ';
+      // var txt = document.createTextNode(arguments[i]+' ');
+      // loge.appendChild(txt);
+      var alltext =alltext + arguments[i]+ ' -- ';
     }
     var br = document.createTextNode(alltext + "\n");
     loge.appendChild(br);
@@ -209,7 +183,7 @@ export function init_player(pipe_el, data_callback) {
 
   // create audioplayer
   const mediaEl = document.createElement('audio');
-   mediaEl.addEventListener('waiting', handleEvent);
+  mediaEl.addEventListener('waiting', handleEvent);
 
   mediaEl.addEventListener('play', handleMediaEl_init);
   mediaEl.addEventListener('emptied', handleEvent);
@@ -219,17 +193,13 @@ export function init_player(pipe_el, data_callback) {
   mediaEl.addEventListener('canplay', handleEvent);
   mediaEl.addEventListener('canplaythrough', handleEvent);
   mediaEl.addEventListener('error', function (evt){
+    // restart the player when there is an error
     console.log('mediaEl error: ', evt);
     console.log(evt.target.src);
     URL.revokeObjectURL(evt.target.src);
     evt.target.removeAttribute('src');
     console.log('should be nonexistant: ', evt.target.src);
     handleMediaEl_init(evt);
-    //document.setTimout(evt.target.play(), 1000);
-
-
-    // remove all sourcebuffers
-//    document.setTimout(evt.target.load(), 1000);
   });
 
 
@@ -237,25 +207,14 @@ export function init_player(pipe_el, data_callback) {
   mediaEl.controls = true;
 
   mediaEl.play();
+  
   // reset to initial state, so mediaSource can be loaded
   //mediaEl.load();
 
-    
   //audio.setAttribute('id', id);
   pipe_el.appendChild(mediaEl);
- 
+
   console.log('end init_player');
 }//init_player
 
-  ///...
-/*
- 
-  mediaSource.addEventListener('sourceopen', function(e) { console.log('sourceopen: ' + mediaSource.readyState); });
-  mediaSource.addEventListener('sourceended', function(e) { console.log('sourceended: ' + mediaSource.readyState); });
-  mediaSource.addEventListener('sourceclose', function(e) { console.log('sourceclose: ' + mediaSource.readyState); });
-  mediaSource.addEventListener('error', function(e) { 
-    console.log('error: ' + mediaSource.readyState);
- 
-  });
 
-*/
