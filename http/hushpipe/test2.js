@@ -89,6 +89,7 @@ function saveBlob(blob, name) {
     //TODO: cleanup blob
 }
 
+var filecount = 0;
 async function
 please_encrypt(blob_event)
 {
@@ -106,7 +107,8 @@ please_encrypt(blob_event)
         type: "video/webm"
       });
       */
-      saveBlob(blob_event.data, "chunk_video_" + filecount + ".webm");
+      saveBlob(blob_event.data, "chunk_vid_" + filecount + ".webm");
+      filecount += 1;
     }
 /*
  // download 

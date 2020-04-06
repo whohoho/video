@@ -20,7 +20,7 @@ function mediaSource_sourceopen (evt, mediaEl) {
   console.log(mediaEl);
   const buffer = evt.target.addSourceBuffer(mediaEl.parentNode.MIMETYPE);
 
-  buffer.mode = 'segments';
+  buffer.mode = 'sequence';
 
   //
   //  buffer.addEventListener('updatestart', function(evt) { console.log('updatestart: ' + evt.target); });
@@ -39,7 +39,11 @@ function mediaSource_sourceopen (evt, mediaEl) {
 
   // return a function, that can be used to put (decrypted) stuff in the decoder
   // sb_callback(uint8Array);
-  return sb_callback;
+  var cb = sb_callback;
+  mediaEl.parentNode.CALLBACK = sb_callback;
+ 
+  window.setInterval(console.log(cb),1000);
+
 
 } // mediaSource_sourceopen
 
@@ -75,19 +79,18 @@ function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
   //   console.log('play buffer callback, sb',sourceBuffer);
   //   console.log('play buffer callback, buf',buf);
   //   console.log('play buffer callback, mediaEl',mediaEl);
-
   if (!sourceBuffer) {
     throw 'nonexistant sourceBuffer in data_callback';
   }
-  if (sourceBuffer.mode != 'segments')
-    throw 'video is not segments WHAT\nx\nx\nx';
+  //if (sourceBuffer.mode != 'segments')
+  //  throw 'video is not segments WHAT\nx\nx\nx';
   if (sourceBuffer.error) // then we should wait
     throw 'video is ERRORed WHAT\ngx\nx\nx';
   if (sourceBuffer.updating){
     //
     // Technically speaking we should wait, instead we just drop frames
     //
-    throw 'buf is updating, while we want to put something in it'
+    //throw 'buf is updating, while we want to put something in it'
     sourceBuffer.addEventListener('updateend', function () {
       //try { video_element.buf.appendBuffer(plaintext);}catch(e){}
     }, { once: true, passive: true });
@@ -100,7 +103,17 @@ function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
 
       if (sourceBuffer) {
         //console.log('adding', mediaEl.msrc);
-        sourceBuffer.appendBuffer(buf);
+        if (!evt.data) {
+          //console.log('testing: ', evt.detail);
+         var uint8View = new Uint8Array(evt.detail);
+
+        } else {
+          //console.log('dc data: ', evt.data)
+         var uint8View = new Uint8Array(evt.data);
+        }
+        //console.log('dc data: ', uint8View)
+
+        sourceBuffer.appendBuffer(uint8View);
       } else {
         console.log('for some\n\nx\n\nx\n\n\nx fucking reason no buffer');
       }
@@ -109,7 +122,7 @@ function play_buffer_callback(evt, sourceBuffer, buf, mediaEl) {
     if (mediaEl.updating) {
       mediaEl.msrc.addEventListener(
         'updateend',
-        e => { doappend(); },
+        e => { console.log('updateend'); doappend(); },
         {once:true,passive:true}
       );
     } else {
@@ -127,32 +140,73 @@ function test_data_callback(evt, sourceBuffer, mediaEl) {
   // FIXME, evt is null
   //  console.log('test_dat_callback', evt,sourceBuffer, mediaEl)
 
-  var oReq = new XMLHttpRequest();
-  oReq.open("GET", "big-buck-bunny_trailer.webm", true);
-  oReq.responseType = "arraybuffer";
+  mediaEl.parentNode.DATACHANNEL.addEventListener("message", function(evt){
+  //  console.log('got message');
+      play_buffer_callback(evt, sourceBuffer, undefined, mediaEl);      
 
-  oReq.onload = function (oEvent) {
-    var arrayBuffer = oReq.response;
-    if (arrayBuffer) {
-      var byteArray = new Uint8Array(arrayBuffer);
-      // call the function that will actually play the buffer
-      play_buffer_callback(evt, sourceBuffer, byteArray, mediaEl);      
+  });
 
-    } // if arrayBuffer
-  }; // oReq onload
-  oReq.send(null);
 }
 
 
 function play_testfile() {
 
+  class fakeDataChannel extends EventTarget {
+    constructor(url) {
+      super();
+      this._url = url;
+    }
+    get url() { return this._url; }
+  };
+
+  let dc = new fakeDataChannel(undefined);
+  dc.addEventListener("message", function(e) {
+    console.log('fake message', e);
+  });
+
   const el = document.getElementById('testdiv');
   // set some config
-  el.TYPE = 'audio';
+  el.TYPE = 'video';
   el.MIMETYPE = 'video/webm;codecs=vp8,vorbis';
+  el.DATACHANNEL = dc;
 
+  function send_fake_msg(dc, file) {
+    var oReq = new XMLHttpRequest();
+    oReq.open("GET", file, true);
+    oReq.responseType = "arraybuffer";
+    oReq.onload = function (oEvent) {
+      console.log(oEvent);
 
-  const put_stuff_in_player = init_player(el);
+    if (oEvent.target.status == 200) {
+      var arrayBuffer = oReq.response;
+      if (arrayBuffer) {
+        var byteArray = new Uint8Array(arrayBuffer);
+/*        let event = new CustomEvent("message", { 
+          detail: "werkt dit??",
+          data: byteArray, 
+          hello: "hello!" }), data = byteArray; */
+       console.log("sending: ", oEvent.target.responseURL);
+
+        let event = new CustomEvent("message", {detail: byteArray}), data = byteArray, lala = true;
+
+        dc.dispatchEvent(event);
+        // call the function that will actually play the buffer
+      } // if arrayBuffer
+    }// if 200
+    }; // oReq onload
+    oReq.send(null);
+  }
+
+  init_player(el, dc);
+//  window.setInterval(function () { send_fake_msg(dc); }, 1000);
+  send_fake_msg(dc, "big-buck-bunny_trailer.webm");
+  let fc = 0; 
+  window.setInterval(function () { 
+   let fn = "testclips/chunk_vid_" + fc + ".webm";
+   send_fake_msg(dc, fn);
+    fc += 1;
+  }, 5000);
+  console.log('test started');
 
 }
 
@@ -181,8 +235,8 @@ export function init_player(pipe_el) {
     log('hello!'); 
   }
 
-  // create audioplayer
-  const mediaEl = document.createElement('audio');
+  // create mediaplayer
+  const mediaEl = document.createElement(pipe_el.TYPE);
   mediaEl.addEventListener('waiting', handleEvent);
 
   mediaEl.addEventListener('play', handleMediaEl_init);
@@ -194,6 +248,11 @@ export function init_player(pipe_el) {
   mediaEl.addEventListener('canplaythrough', handleEvent);
   mediaEl.addEventListener('error', function (evt){
     // restart the player when there is an error
+    
+    mediaEl.parentNode.DATACHANNEL.addEventListener('message', function (event) {
+      event.stopPropagation();
+    }, true); 
+   
     console.log('mediaEl error: ', evt);
     console.log(evt.target.src);
     URL.revokeObjectURL(evt.target.src);
@@ -215,6 +274,10 @@ export function init_player(pipe_el) {
   pipe_el.appendChild(mediaEl);
 
   console.log('end init_player');
+  console.log(mediaEl.parentNode.CALLBACK);
+
+  return mediaEl.parentNode.CALLBACK;
+
 }//init_player
 
 
