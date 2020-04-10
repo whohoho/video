@@ -1,5 +1,11 @@
 'use strict';
 import "./pipe-common.js";
+//import * as mediarecorder from "./audiorecorder.js";
+import * as mediaplayer from "./pipe-common.js";
+
+
+
+
 export const NAME = 'audio';
 // the type of datachannel this module wants
 
@@ -22,12 +28,6 @@ const RECOPT = {
 	      //bitsPerSecond:       2628000,
 	      mimeType : MIMETYPE,
  	    };
-
-//let channel;
-//let encryptor;
-//let decryptor;
-//let rec_handle;
-//let t;
 
 export async function please_encrypt(blob_event, t){
       //debug('chan in please_encrypt: ', t.channel, t.encryptor);

@@ -17,14 +17,6 @@ services:
       - 8081:8081
       - 8188:8188
 
-
-  janus-admin:
-    image: quay.io/hellofresh/janus-dashboard
-    container_name: janus-dashboard-othername
-    ports:
-      - 8082:80
-  #docker run -d -p 8082:80 --name janus-dashboard quay.io/hellofresh/janus-dashboard
-  #
   http-server:
     image: alfg/nginx-rtmp
     ports:
@@ -36,3 +28,9 @@ services:
       - ./mime.types:/etc/nginx/mime.types
       - ./keys:/opt/certs
 
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.57.0/24

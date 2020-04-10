@@ -217,13 +217,22 @@ hush_camera_record()
 
       hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
 
-      hush_camera_handle = new MediaRecorder(s, {codec: HUSH_CODEC});
+      hush_camera_handle = new MediaRecorder(s, {
+        codec: HUSH_CODEC, 
+        audioBitsPerSecond: 160,
+        videoBitsPerSecond: 160,
+
+      });
       hush_camera_handle.mode = 'sequence';
       hush_camera_handle.ondataavailable = please_encrypt;
       hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
     let constraints = {
 	video: {
+   // width: { min: 240, ideal: 480, max: 500},
+   // height: { min: 180, ideal: 360, max: 400},
+      "height":{"exact":240},
+      "width":{"exact":320},
 	    frameRate: { ideal: 20, max: 25, } /* or just video:true*/
 	    // facingMode: 'user' // use selfie-cam, !shoot-my-swimming-pool-cam
 	},
@@ -235,6 +244,7 @@ hush_camera_record()
 	}
 	*/
     }
+  
   var m = navigator.getUserMedia(
       constraints,
       camera_works,

@@ -151,6 +151,7 @@ function test_data_callback(evt, sourceBuffer, mediaEl) {
 
 function play_testfile() {
 
+  
   class fakeDataChannel extends EventTarget {
     constructor(url) {
       super();
@@ -158,6 +159,7 @@ function play_testfile() {
     }
     get url() { return this._url; }
   };
+  
 
   let dc = new fakeDataChannel(undefined);
   dc.addEventListener("message", function(e) {

@@ -14,11 +14,12 @@ const MIMETYPE = 'video/webm;codecs=vp8';
 
 const REC_MS = 2000;
 const RECOPT = { 
+  video: true,
   //audioBitsPerSecond :  64000,
   //latency : 0,
   //frameRate: 10,
-  height: 640,
-  width: 480,
+  //height: 640,
+  //width: 480,
   //videoBitsPerSecond : 2500000,
   //bitsPerSecond:       2628000,
   mimeType : MIMETYPE,
@@ -45,8 +46,8 @@ chunk_rec_callback(blob_event)
     chunks.push(chunk);
 
     if (blob_event.data && debug) {
-      debug_filecount += 1;
       utils.saveBlob(blob_event.data, "chunk_vid_" + debug_filecount + ".webm", true);
+      debug_filecount += 1;
     }
 }
 
