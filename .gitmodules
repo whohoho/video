@@ -1,0 +1,3 @@
+[submodule "http/hushpipe/opuswasm/opus"]
+	path = http/hushpipe/opuswasm/opus
+	url = https://github.com/xiph/opus.git

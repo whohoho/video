@@ -1,20 +1,15 @@
-if(typeof require != "undefined" && typeof libopus == "undefined"){
-const LIBOPUS_WASM_URL = "opus/libopus.wasm";
-const libopus = require("opus/libopus.wasm.js");
-//import * as libopus from "./opus/libopus.wasm.js";
-}
+//if(typeof require != "undefined" && typeof libopus == "undefined"){
+//const LIBOPUS_WASM_URL = "opus/libopus.wasm";
+//const libopus = require("opus/libopus.wasm.js");
+//import * as libopus from "./opus/libopus.js";
+import Module from "./opus/libopus-standalone4.js";
+//import * as libopus from "./opus/libopus-standalone4.js";
+//console.log(libopus);
 
+//}
 
 
 class OpusProcessor extends AudioWorkletProcessor {
-
-  var importObject = {
-  imports: {
-    imported_func: function(arg) {
-      console.log(arg);
-    }
-  }
-  };
 
   static get parameterDescriptors () {
       return [{
@@ -29,29 +24,21 @@ class OpusProcessor extends AudioWorkletProcessor {
 
   constructor (options) {
     super()
-    console.log('new audioencoder: ', options);
+		//importScripts('opus/libopus.wasm.js');
 
-    WebAssembly.instantiateStreaming(fetch('opus/libopus.wasm'), importObject)
-    .then(obj => {
-      // Call an exported function:
-      obj.instance.exports.exported_func();
+    console.log('new audioencoder: ', Module);
 
-      // or access the buffer contents of an exported memory:
-      var i32 = new Uint32Array(obj.instance.exports.memory.buffer);
-
-      // or access the elements of an exported table:
-      var table = obj.instance.exports.table;
-      console.log(table.get(0)());
-    })
-
-   // const LIBOPUS_WASM_URL = "opus/libopus.wasm";
+    // const LIBOPUS_WASM_URL = "opus/libopus.wasm";
    // const libopus = require("opus/libopus.wasm.js");
 
     //libopus.onload();
     console.log(options.numberOfInputs)
 //    console.log(options.processorOptions.someUsefulVariable)
     // setup encoder
-   this.enc = new libopus.Encoder(1,48000,24000,20,false);
+     this.enc = Module.Encoder_new();
+    console.log(this.enc);
+
+  // this.enc = new Module.Encoder(1,48000,24000,20,false);
  
    // setup decoder
    // var dec = new libopus.Decoder(1,48000);

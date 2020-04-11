@@ -14,6 +14,26 @@ chromium --temp-profile --use-fake-device-for-media-stream http://localhost:80/h
 chromium --temp-profile --use-fake-device-for-media-stream --use-file-for-fake-video-capture=/home/user/javascript/hushtalk/foreman.y4m http://localhost:80/hushpipe/
 ````
 
+Roadmap:
+
+Soon:
+* webm demuxer (for tuning in mid stream / dealing with packet loss)
+* audiocontext / wasm opus encoder , for low latency audio feeds
+* chatbox
+* key rotation
+
+Later:
+* generate some kind of picture / color from key id
+* persistent identities (in same room)
+* presentation mode (a/v in sync)
+* usable user interface
+* high latency a/v (sending clips)
+* put messages in some translation file
+* relay selection (with rtt indication)
+
+
+
+
 
 All rights reserved, 
 Please post an issue to get a licence quote
