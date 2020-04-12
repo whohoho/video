@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <!--    <script src="https://unpkg.com/audioworklet-polyfill/dist/audioworklet-polyfill.js"></script> -->
+
+   <!--
+    // polyfill for audioworklet running in iframe
+    // this one has issues with module loading (import statements etc.)
+   <script src="awp-index.js" type="module"></script>
+   -->
+
+   <!--  polyfill for audioworlet that uses a webworker
+   -->
+   <script src="audioworklet.js" type="module"></script>
+
+
+   <script> console.log(self.AudioWorklet); </script>
+
+
+    <link href="was-styles.css" rel="stylesheet">
+    <title>audioworklet + wasm testing</title>
+  </head>
+  <body>
+    <div class="container was-page-wrap"></div>
+    <script type="module">
+      import WorkletDemoBuilder from './WorkletDemoBuilder.js'
+      import PageData from './PageData.js';
+      //let context = new OfflineAudioContext(1, 1, 44100);
+      const context = new AudioContext();
+
+      async function run(context) {
+        AWPF.polyfill( context ).then( () => {
+
+                context.audioWorklet.addModule('./ring-buffer-worklet-processor.js');
+          const oscillator = new OscillatorNode(context);
+          console.log(oscillator);
+          console.log(typeof oscillator)
+          const proto = oscillator.__proto__.__proto__.__proto__
+
+          const ringBufferWorkletNode =
+              new AudioWorkletNode(context, 'ring-buffer-worklet-processor', {
+                processorOptions: {
+                  kernelBufferSize: 1024,
+                  channelCount: 1,
+                },
+              });
+          Object.setPrototypeOf(ringBufferWorkletNode, window.AudioNode)
+          ringBufferWorkletNode.__proto__ = proto;
+          console.log(ringBufferWorkletNode);
+          console.log(ringBufferWorkletNode.__proto__);
+          console.log(typeof ringBufferWorkletNode)
+          const c1 = oscillator.connect(ringBufferWorkletNode)
+          console.log(c1);
+          const c2 = c1.connect(context.destination);
+          console.log(c2);
+
+          oscillator.start();
+          
+        });
+      };
+      run(context);
+
+      const demoCode = async (context) => {
+          console.log('democode', context);
+
+      };
+      WorkletDemoBuilder(PageData, demoCode);
+    </script>
+  </body>
+</html>
