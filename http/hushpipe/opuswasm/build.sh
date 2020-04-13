@@ -31,6 +31,7 @@ emsdk activate latest-fastcomp
 
 #https://github.com/emscripten-core/emscripten/blob/master/src/settings.js
 
+#But by putting each module in a function scope, that problem is avoided. Emscripten even has a compile flag for this, MODULARIZE, useful in conjunction with EXPORT_NAME (details in settings.js).
 
 emcc --bind -O0 \
 	  -s WASM=1 \
