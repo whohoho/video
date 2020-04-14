@@ -33,26 +33,50 @@ emsdk activate latest-fastcomp
 
 #But by putting each module in a function scope, that problem is avoided. Emscripten even has a compile flag for this, MODULARIZE, useful in conjunction with EXPORT_NAME (details in settings.js).
 
-emcc --bind -O0 \
-	  -s WASM=1 \
-    -s MINIMAL_RUNTIME=0 \
-    -s MINIMAL_RUNTIME_STREAMING_WASM_COMPILATION=1 \
-    -s MINIFY_HTML=1 \
-    -s ASSERTIONS=1 \
-    -s "EXTRA_EXPORTED_RUNTIME_METHODS=['UTF32ToString']" \
-    -Iopus/include -Lopus/.libs -lopus \
-		VariableBufferKernel.cc \
-		-o variablebuffer.js.html
+#emcc --bind -O0 \
+#	  -s WASM=1 \
+#    -s MINIMAL_RUNTIME=0 \
+#    -s MINIMAL_RUNTIME_STREAMING_WASM_COMPILATION=1 \
+#    -s MINIFY_HTML=1 \
+#    -s ASSERTIONS=1 \
+#    -s "EXTRA_EXPORTED_RUNTIME_METHODS=['UTF32ToString']" \
+#    -Iopus/include -Lopus/.libs -lopus \
+#		VariableBufferKernel.cc \
+#		-o variablebuffer.js.html
+# .wasm.mod.js.js
 
-emcc --bind -O0 \
+    #-s MODULARIZE=1 \
+    #     -s MODULARIZE_INSTANCE=1 \
+
+#emcc --bind -O0 \
+#	  -s WASM=1 \
+#    -s MINIMAL_RUNTIME=0 \
+#    -s MINIMAL_RUNTIME_STREAMING_WASM_COMPILATION=1 \
+#    -s MINIFY_HTML=1 \
+#    -s EXTRA_EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap']" \
+#    -s EXPORT_ES6=1 \
+#    -s MODULARIZE=1 \
+#    -s EXPORT_NAME="Module" \
+#    -Iopus/include -Lopus/.libs -lopus \
+#		Opus.cc \
+#    -s "EXPORTED_FUNCTIONS=['_opus_encoder_create']" \
+#		-o opus.wasm.mod.mjs
+
+emcc -O0 \
 	  -s WASM=1 \
     -s MINIMAL_RUNTIME=0 \
     -s MINIMAL_RUNTIME_STREAMING_WASM_COMPILATION=1 \
     -s MINIFY_HTML=1 \
+    -s "EXPORTED_FUNCTIONS=['version', 'encode', 'decode', 'getEncoderSize', 'getDecoderSize', 'initEnc', 'initDec'  ]" \
+    -s EXTRA_EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap']" \
+    -s EXPORT_ES6=1 \
+    -s MODULARIZE=1 \
+    -s EXPORT_NAME="Module" \
+    -s NO_FILESYSTEM=1 -s DISABLE_EXCEPTION_CATCHING=1 -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]' -s LIBRARY_DEPS_TO_AUTOEXPORT='[]' -s USE_SDL=0  \
     -Iopus/include -Lopus/.libs -lopus \
-		Opus.cc \
+		opus.c \
     -s "EXPORTED_FUNCTIONS=['_opus_encoder_create']" \
-		-o opus.wasm.js.html
+		-o opus.wasm.mod.mjs
 
 
 

@@ -13,9 +13,28 @@
       }
 
     </style>
+    <!--    <script type="module" src="./opus.wasm.mod.mjs"></script> -->
+    <script type="module">
+    import Module from "./opus.wasm.mod.mjs";
+    console.log(Module);  
+    const mymod = Module();
+    document.m = mymod;
+//    const o = new mymod.Opus;
+//    const mymod = TestModule;
+    console.log('mymod: ', mymod);  
+    console.log(mymod.CalledRun);  
+    console.log(mymod.setDelayFunction);  
+    console.log(mymod.lerp);  
+    console.log(mymod.Opus);  
+    console.log(mymod.Opus);  
+
+
+    </script>
+
 
 <!--    <script type="text/javascript" src="opus/libopus.wasm.js"></script> -->
     <script> 
+/* 
       // for the minimal runtime
       var Module = {};
     (async () => {
@@ -28,7 +47,7 @@
     wel.src = './opus.wasm.js';
     document.body.appendChild(wel);
     })();
-
+*/
 
 /* for the non minimal runtime         var Module = {};
 
@@ -53,9 +72,8 @@
     </script>
 
 
-<!--
     <script src="opustest.js" type="module"></script>
-    -->
+  
   </head>
   <body>
     <p>

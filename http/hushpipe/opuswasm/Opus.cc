@@ -2,7 +2,7 @@
 // directly using the emscripten generated file as audioworklet: https://github.com/emscripten-core/emscripten/issues/6230
 #include "emscripten/bind.h"
 #include "opus.h"
-
+#include <math.h>
 #define MAX_PACKET (1500)
 #define SAMPLES (48000*30)
 #define SSAMPLES (SAMPLES/3)
@@ -17,9 +17,15 @@ class Opus {
  public:
   Opus(unsigned kernel_buffer_size)
       : kernel_buffer_size_(kernel_buffer_size),
-        bytes_per_channel_(kernel_buffer_size * sizeof(float)) {}
+        bytes_per_channel_(kernel_buffer_size * sizeof(float)) {
+        
+        printf("can we print??");
+
+        }
   
   void initEnc() {
+    printf("Initenc");
+
     enc = opus_encoder_create(48000, 1, OPUS_APPLICATION_VOIP, &err);
   }
 
@@ -87,3 +93,10 @@ EMSCRIPTEN_BINDINGS(opus) {
 
 }
 
+
+extern "C" {
+
+  int int_sqrt(int x) {
+    return sqrt(x);
+  }
+}

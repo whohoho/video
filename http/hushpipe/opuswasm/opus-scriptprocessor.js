@@ -9,10 +9,10 @@ class OpusScriptProcessor extends ScriptProcessorNode {
     // Give the node a function to process audio events
   scriptNode.onaudioprocess = function(audioProcessingEvent) {
     // The input buffer is the song we loaded earlier
-    var inputBuffer = audioProcessingEvent.inputBuffer;
-
+    var inputBuffer = audioProcessingEvent.inputBuffer.getChannelData(0);
+    console.log(inputBuffer);
     // The output buffer contains the samples that will be modified and played
-    var outputBuffer = audioProcessingEvent.outputBuffer;
+    var outputBuffer = audioProcessingEvent.outputBuffer.getChannelData(0);
 
     // Loop through the output channels (in this case there is only one)
     for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {

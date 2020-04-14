@@ -12,4 +12,6 @@ Firefox does not support audioworklet
 No webrtc in webworker:
   [[https://github.com/w3c/webrtc-pc/issues/230]]
 
+#stuff not implemented (yet)
 
+* insertable streams https://www.chromestatus.com/feature/6321945865879552

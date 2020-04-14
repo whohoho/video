@@ -192,6 +192,7 @@ class RingBuffer {
    * @return {number} Available frames in buffer.
    */
   get framesAvailable() {
+    //console.log('hello', this._framesAvailable);
     return this._framesAvailable;
   }
 
@@ -203,7 +204,7 @@ class RingBuffer {
   push(arraySequence) {
     // The channel count of arraySequence and the length of each channel must
     // match with this buffer obejct.
-
+    //console.log(arraySequence);
     // Transfer data from the |arraySequence| storage to the internal buffer.
     let sourceLength = arraySequence[0].length;
     for (let i = 0; i < sourceLength; ++i) {
@@ -261,10 +262,104 @@ class RingBuffer {
   }
 } // class RingBuffer
 
+class channelRingBuffer {
+  /**
+   * @constructor
+   * @param  {number} length Buffer length in frames.
+   */
+  constructor(length, channelCount) {
+    this._readIndex = 0;
+    this._writeIndex = 0;
+    this._framesAvailable = 0;
+
+    this._length = length;
+    this._Data = new Float32Array(length);
+  }
+
+  /**
+   * Getter for Available frames in buffer.
+   *
+   * @return {number} Available frames in buffer.
+   */
+  get framesAvailable() {
+    //console.log('hello', this._framesAvailable);
+    return this._framesAvailable;
+  }
+
+  /**
+   * Push a sequence of Float32Arrays to buffer.
+   *
+   * @param  {array} arraySequence A sequence of Float32Arrays.
+   */
+  push(arraySequence) {
+    // The channel count of arraySequence and the length of each channel must
+    // match with this buffer obejct.
+    //console.log(arraySequence);
+    // Transfer data from the |arraySequence| storage to the internal buffer.
+    let sourceLength = arraySequence.length;
+    for (let i = 0; i < sourceLength; ++i) {
+      let writeIndex = (this._writeIndex + i) % this._length;
+        this._Data[writeIndex] = arraySequence[i];
+    }
+
+    this._writeIndex += sourceLength;
+    if (this._writeIndex >= this._length) {
+      this._writeIndex = 0;
+    }
+
+    // For excessive frames, the buffer will be overwritten.
+    this._framesAvailable += sourceLength;
+    if (this._framesAvailable > this._length) {
+      this._framesAvailable = this._length;
+    }
+  }
+
+  /**
+   * Pull data out of buffer and fill a given sequence of Float32Arrays.
+   *
+   * @param  {array} arraySequence An array of Float32Arrays.
+   */
+  pull(arraySequence) {
+    // The channel count of arraySequence and the length of each channel must
+    // match with this buffer obejct.
+
+    // If the FIFO is completely empty, do nothing.
+    if (this._framesAvailable === 0) {
+      return;
+    }
+
+    let destinationLength = arraySequence.length;
+    //console.log('destination , lenght', arraySequence, destinationLength)
+    // Transfer data from the internal buffer to the |arraySequence| storage.
+    for (let i = 0; i < destinationLength; ++i) {
+      let readIndex = (this._readIndex + i) % this._length;
+
+//      console.log('wtf', arraySequence[i], i, this._channelData[readIndex], readIndex)
+//        console.log('wtf', arraySequence[i], i, this._Data, readIndex)
+
+      arraySequence[i] = this._Data[readIndex];
+
+    }
+
+    this._readIndex += destinationLength;
+    if (this._readIndex >= this._length) {
+      this._readIndex = 0;
+    }
+
+    this._framesAvailable -= destinationLength;
+    if (this._framesAvailable < 0) {
+      this._framesAvailable = 0;
+    }
+  }
+} // class channelRingBuffer
+
+
 
 export {
   MAX_CHANNEL_COUNT,
   RENDER_QUANTUM_FRAMES,
   HeapAudioBuffer,
   RingBuffer,
+  channelRingBuffer,
+
 };
