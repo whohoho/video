@@ -54,7 +54,8 @@ export class JitterBuffer {
    this.late = 0;
    // dropped packets = notfound - late
    this.found = 0;
-
+   // seq < seqin 
+   this.outoforder = 0;
    // highest sequence number in buffer
    this.seqin = null;
    //last seq that was played (that includes packets that where not available at the time of playing)
@@ -132,7 +133,12 @@ export class JitterBuffer {
     
     // normal in order packet
 
-    this.seqin = seq
+    if ( seq > this.seqin) {
+      this.seqin = seq
+    } else {
+      console.log('out of order');
+      this.outoforder += 1;
+    }
     this.insert(seq, buffer);
     //console.log('uyhm');
     return;
@@ -154,6 +160,7 @@ export class JitterBuffer {
         '\n notfound: ', this.notfound,
         '\n late: ', this.late, 
         '\n found: ', this.found,
+        '\n outoforder: ', this.outoforder,
         '\n loss %: ', (((this.notfound - this.late) / this.found)  * 100),
         '\n late %: ', ((this.late / this.found)  * 100)
      

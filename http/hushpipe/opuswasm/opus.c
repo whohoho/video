@@ -26,7 +26,7 @@ EMSCRIPTEN_KEEPALIVE
 //  sizeof *enc = opus_encoder_get_size(channels);
 int initEnc(unsigned char *enc) {
     
-    #ifdef CUSTOM
+   #ifdef CUSTOM
     OpusCustomMode *opus_mode = opus_custom_mode_create(48000, FRAME, NULL);
     OpusCustomEncoder *oe = opus_custom_encoder_create( opus_mode, 1, &err );
     //opus_custom_encoder_ctl(oe, OPUS_SET_BITRATE(kbps*1024)); // bits per second
@@ -34,10 +34,26 @@ int initEnc(unsigned char *enc) {
     //opus_custom_encoder_ctl(oe, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_custom_encoder_ctl(oe, OPUS_SET_SIGNAL(OPUS_APPLICATION_VOIP));
     return oe; 
-    #else
+  #else
+    int ret;
     // using init instead of create, cause then we pass it the memory
-    return opus_encoder_init(enc, 48000, CHANNELS, OPUS_APPLICATION_VOIP);
-    #endif
+    ret = opus_encoder_init(enc, 48000, CHANNELS, OPUS_APPLICATION_VOIP);
+
+    //opus_encoder_ctl(enc, OPUS_SET_BITRATE(bitrate_bps));
+    //opus_encoder_ctl(enc, OPUS_SET_BANDWIDTH(bandwidth));
+    opus_encoder_ctl(enc, OPUS_SET_VBR(0));
+    //opus_encoder_ctl(enc, OPUS_SET_VBR_CONSTRAINT(cvbr));
+    //opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(complexity));
+    opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
+    //opus_encoder_ctl(enc, OPUS_SET_FORCE_CHANNELS(forcechannels));
+    //opus_encoder_ctl(enc, OPUS_SET_DTX(use_dtx));
+    opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(30));
+
+    //opus_encoder_ctl(enc, OPUS_GET_LOOKAHEAD(&skip));
+    //opus_encoder_ctl(enc, OPUS_SET_LSB_DEPTH(16));
+    //opus_encoder_ctl(enc, OPUS_SET_EXPERT_FRAME_DURATION(variable_duration));
+    return ret;
+  #endif
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -69,7 +85,12 @@ int encode(struct OpusEncoder *enc, float *input_buffer, unsigned char *packet) 
     // 257 is from opus tests, probably header?
     // kernel_buffer_size has to be a valid opus input size
     // frame size = 480 == 10ms at 48khz
-  return opus_encode_float(enc, input_buffer, FRAME, packet, MAX_PACKET);
+  int len;
+  len = opus_encode_float(enc, input_buffer, FRAME, packet, MAX_PACKET);
+
+  opus_packet_pad(packet, len, MAX_PACKET);
+  return len;
+
   //The length of the encoded packet (in bytes) on success or a
   // *          negative error code (see @ref opus_errorcodes) on failure.
 

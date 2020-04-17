@@ -92,7 +92,7 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
   console.log('init decoder: ', wasm._initDec(dec));
 
   const OpusBufferSize = 480;
-  const OpusPacketSize = 1500;
+  const OpusPacketSize = 1500; // 68 is actual size, padding is enabled
   const iRB = new channelRingBuffer(480, 1);
   const oRB = new channelRingBuffer(480, 1);
   const iH =  new HeapAudioBuffer(wasm, 480, 1);
@@ -125,6 +125,7 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
       iRB.pull(iH.getChannelData(0));
       const packet = wasm._malloc(1500);
       const encret = wasm._encode(enc, iH.getHeapAddress(), packet);
+      //console.log(encret);
       if ( encret < 0 ) {
         console.log('encode error: ', encret);
       }
@@ -156,20 +157,21 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
       // https://padenot.github.io/web-audio-perf/
       // https://developer.mozilla.org/en-US/docs/Web/API/Performance
     // now put it in jitterbuffer
-    if ( iter % 100 == 0 )
+    if ( iter % 10 == 0 )
     {
       // simulate packet drop
     } else {
-      JB.push(seq, decrypted);
+      JB.push (seq, decrypted);
     }
 
+    /*
     if ( iter % 44 == 0 )
     {
      // simulate late (actually duplicated), and eventually wrong packet for seq
       JB.push(seq - 123, decrypted);
-
     }
-
+*/
+    //JB.push(seq, decrypted);
     var toplay = JB.pop();
 
     if (toplay == null) {
@@ -194,7 +196,7 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
       wasm._free(packet);
     //console.log(packetv);
 
-      //oRB.push(oH.getChannelData(0));
+      oRB.push(oH.getChannelData(0));
     }
 
 
