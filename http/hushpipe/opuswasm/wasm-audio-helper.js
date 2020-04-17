@@ -27,6 +27,180 @@ const MAX_CHANNEL_COUNT = 32;
 const RENDER_QUANTUM_FRAMES = 128;
 
 
+export class JitterBuffer {
+  /** FIXME: actually check if this thing works (probably full of mistakes)
+   * The point of this buffer is to deal with variation in interpacketdelay.
+   * its clocked by the audio card
+   * it works with fixed size (and time) packets, so seqnums should increase on the clock
+   * It should have a sensible buffer amount at start, and adapt the size of the buffer to network condition (late packets). 
+   * when a packets arrives late (seqin => seqout), increase the size
+   * when seq is not in buffer (or has to stay in), return null pointer (to instruct opus to do plc)
+   * packets only go out, when seqin - seqout = size
+   * when packet comes in and seqin = 0, seqin will be the seq of that packet and seqout will be seqout + size (to make playing only start when there is enough buffered)
+   * when a packet comes in and packetseq < seqin, then packet is out of order, or stream has restarted, 
+       figure out which one is the case, if stream got restarted, jitterbuffer should reset seqin / seqout
+   */ 
+
+  constructor() {
+    this.pulls = 0;
+   this.clock = 0;
+  // buffer slots, this is the size of the buffer / latency
+   // initial ~ 100ms
+   this.numslots = 10;
+   this.maxslots = 300;
+   //packets that where not there when they shoud have been played
+   this.notfound = 0;
+   // packets that came in after they should have been played
+   this.late = 0;
+   // dropped packets = notfound - late
+   this.found = 0;
+
+   // highest sequence number in buffer
+   this.seqin = null;
+   //last seq that was played (that includes packets that where not available at the time of playing)
+   this.seqout = null;
+   // first seqnum in buffer
+   this.position = null;
+  // increase delay, set this to have the next packet read be silence (to increase delay)
+  this.increase = false;
+  // apperently a javascript array is not an array anyway, so this is easier
+  this.slots = {}
+    //seqout - 1 is the first element in the slots array
+    // slots[0], is the packet that should be played
+    //when a slot has been send to play, make it null
+    //    -1  |   0  |   1  |    2   |
+    // seqout |      |      |  seqin |
+
+  }
+  insert(seq, packet) {
+    //console.log('inserting: ', seq, packet);
+    this.slots[seq] = packet;
+  }
+
+  find(seq) {
+    if (this.slots.hasOwnProperty(seq)) {
+      //console.log('found', seq, this.numbuffered());
+      this.found += 1;
+      var ret = this.slots[seq];
+      delete this.slots[seq];
+      return ret;
+    } else {
+      // we never got that packet
+      //console.log('not found found: ', seq, this.numbuffered());
+      this.notfound += 1;
+      return null;
+    }
+  }
+  numbuffered() {
+    return Object.keys(this.slots).length;
+  }
+  /**
+   * receive a packet
+   */
+  push(seq, buffer){
+//    console.log('got packet', seq, this.seqout, this.seqin, this.numslots);
+    /*
+    if ((this.seqout < 1) && this.seq < (this.seqout - this.numslots) ) {
+      console.log('initial filling ', seq, this.seqin, this.seqout, this.numslots);
+      return;
+    }
+    */
+    if (this.seqin == null){
+      // first packet we receive
+      this.seqin = seq;
+      this.seqout = seq; // we should start playing with the first packet we receive
+      //console.log('got first packet seq, in, out, num', seq, this.seqin, this.seqout, this.numslots);
+      
+    }
+
+    if (! seq == this.seqin + 1) {
+      console.log('not the next packet, missing one');
+    }
+    /*
+    if (seq < this.seqin) {
+      // out of order packet, drop it FIXME
+      console.log('dropping out of order packet with seq, in, out, numslots: ', seq, this.seqin, this.seqout, this.numslots);
+    } else {
+     */ 
+    if (seq < this.seqout){
+      //this also happens when a packet gets received twice, 1 in time and 1 late
+      this.increase = true;
+      this.late += 1;
+     // console.log('late packet, dropping, setting increase', seq, this.seqin, this.seqout, this.increase);
+      return;
+    }
+    
+    // normal in order packet
+
+    this.seqin = seq
+    this.insert(seq, buffer);
+    //console.log('uyhm');
+    return;
+
+  }
+  /**
+   * ask for a packet to play
+   */
+  pop(){
+    // for debuggin messag3
+    this.pulls += 1;
+
+    //console.log('jitter status', this.seqin, this.seqout, this.numslots, this.clock, this.pulls, this.increase);
+    if ( this.pulls % 100 == 0 )
+    {
+      console.log('jitter stats\n in: ', this.seqin, 
+        '\n out: ', this.seqout, 
+        '\n slots: ', this.numslots, 
+        '\n notfound: ', this.notfound,
+        '\n late: ', this.late, 
+        '\n found: ', this.found,
+        '\n loss %: ', (((this.notfound - this.late) / this.found)  * 100),
+        '\n late %: ', ((this.late / this.found)  * 100)
+     
+      );
+    }
+
+    if (this.seqin != null) {
+      // start counting when first packet arrives, don't count when we increase buffer size
+      this.clock += 1;
+    } 
+    //FIXME: figure out when to decrease (early packet count?? if > 10 in a row very early?)
+    if (this.decrease) {
+      this.numslots -= 1;
+      this.decrease = false;
+    }
+
+    if (this.increase) {
+      if (this.numslots < this.maxslots) {
+        this.numslots += 1;
+      }
+      this.increase = false;
+//      console.log('increasing buff', this.seqin, this.seqout, this.numslots, this.clock, this.pulls, this.increase);
+      // we are increasing buffersize, so that means playing silence
+      // there is nothing to be played (call opus with zero length and null pointer)
+      return null;
+    }
+
+
+    //console.log('la: out >   ', this.seqout, (this.seqin - this.numslots) );
+    if ((this.seqout) > (this.seqin - this.numslots)) {
+      //FIXME: this can also happen during playing, figure out if that makes sense
+      console.log('buffer not filled yet, waiting with playing: in, out, num', this.seqin, this.seqout, this.numslots);
+      return null;
+    } else {
+      //console.log('initially filled (out should be 1 (or first seq we got), cause 1 is the first packet), in, out', this.seqin, this.seqout);
+      //
+      // enough range in buffer, so we can play
+      this.seqout += 1;
+     return this.find(this.seqout - 1);
+ 
+    }
+  }
+
+}
+
+
+
 /**
  * A WASM HEAP wrapper for AudioBuffer class. This breaks down the AudioBuffer
  * into an Array of Float32Array for the convinient WASM opearion.

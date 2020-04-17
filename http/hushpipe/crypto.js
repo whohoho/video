@@ -212,18 +212,27 @@ get_master_key_from_url()
     return key_as_arr;
 }
 
+
+async function
+encrypt_blob(key, blob)
+{
+  /*
+   * Maybe we should operate on blob.stream() instead,
+   * and use a TransformStream
+   */
+
+  const plaintext = await blob.arrayBuffer();
+  encrypt(key, plaintext);   
+}
+
+
 /*
  * If all goes well, return Uint8Array with everything the receiver
  * needs to decrypt (blob).
  */
 async function
-encrypt_blob(key, blob)
+encrypt(key, plaintext)
 {
-    /*
-     * Maybe we should operate on blob.stream() instead,
-     * and use a TransformStream
-     */
-    const plaintext = await blob.arrayBuffer();
     const iv = await crypto.getRandomValues(new Uint8Array(IV_BYTES));
     const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
 	{...GCM_PARAMS,
@@ -260,10 +269,27 @@ async function
 decrypt_uint8array(key, buf)
 {
 //    console.log('buf in decrypt: ', buf)
-    const iv = buf.subarray(-IV_BYTES);
-    const data = buf.subarray(0, -IV_BYTES);
-    return crypto.subtle.decrypt(
+  //const iv = 1234;
+  //console.log(buf);
+  //try {
+    const iv = await buf.subarray(-IV_BYTES);
+  //} catch (e) {
+  //  console.log('iv failed: ', e);
+  //  return false;
+  //}
+  //try {
+    const data = await buf.subarray(0, -IV_BYTES);
+  //} catch (e) {
+  //  console.log('error with buf in decrypt', e);
+  //  return;
+  //}
+  try {
+    var decrypted = crypto.subtle.decrypt(
 	{...GCM_PARAMS,
 	 'iv': iv
 	}, key, data);
+    return decrypted;
+  } catch (e) {
+    console.log('err in decrypt', e);
+  }
 }
