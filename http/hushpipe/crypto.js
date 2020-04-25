@@ -220,9 +220,14 @@ encrypt_blob(key, blob)
    * Maybe we should operate on blob.stream() instead,
    * and use a TransformStream
    */
-
+  /*
+  console.log('encrypt_blob',
+    '\n key: ', key,
+    '\n blob: ', blob
+  );
+  */
   const plaintext = await blob.arrayBuffer();
-  encrypt(key, plaintext);   
+  return encrypt(key, plaintext);   
 }
 
 

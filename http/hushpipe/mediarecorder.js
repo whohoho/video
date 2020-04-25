@@ -87,16 +87,16 @@ async function do_test() {
   const status_el = document.getElementById('testdiv');
   let constraintList = document.getElementById("testdiv");
   let supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
-/*
+
   for (let constraint in supportedConstraints) {
     if (supportedConstraints.hasOwnProperty(constraint)) {
-      let elem = document.createElement("li");
+      let elem = document.createElement("fieldset");
       
       elem.innerHTML = "<code>" + constraint + "</code>";
       constraintList.appendChild(elem);
     }
   }
-*/
+
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
   console.log("enumerateDevices() not supported.");
   return;

@@ -8,16 +8,7 @@ import { JitterBuffer, channelRingBuffer, HeapAudioBuffer, RingBuffer } from 'ht
 // https://github.com/GoogleChromeLabs/web-audio-samples/blob/master/audio-worklet/design-pattern/wasm/wasm-worklet-processor.js
 
 async function init () {
-/*
-(async () => {
-  const response = await fetch('opus.wasm');
-  const module = await WebAssembly.compileStreaming(response);
-  const instance = await WebAssembly.instantiate(module);
-  const result = instance.exports.fibonacci(42);
-  console.log(result);
-})();
 
-*/
   await crypto_new_master_key(); 
   try {
       const master_key = await get_master_key_from_url();
@@ -35,28 +26,6 @@ async function init () {
     audio_init();
   });
 }
-function audioprocess (evt) {
-    var inputBuffer = evt.inputBuffer;
-    var outputBuffer = evt.outputBuffer;
-
-    // Loop through the output channels (in this case there is only one)
-    for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
-      var inputData = inputBuffer.getChannelData(channel);
-      var outputData = outputBuffer.getChannelData(channel);
-      
-      console.log(inputData);
-
-      // Loop through the 4096 samples
-      for (var sample = 0; sample < inputBuffer.length; sample++) {
-        // make output equal to the same as the input
-        outputData[sample] = inputData[sample];
-
-        // add noise to each output sample
-        outputData[sample] += ((Math.random() * 2) - 1) * 0.2;         
-      }
-    }
-  }
-
 
 
 function usermedia_success( stream ) {
@@ -75,27 +44,30 @@ function usermedia_success( stream ) {
   };
 ------------------------  */
 var encoderNode = actx.createScriptProcessor(256, 1, 1);
-  
+ 
+  // get a ref to the webassembly module
   const wasm = document.m;
   console.log(wasm);
 
-  // alloc memory for the encoder state
-  const encsize = wasm._getEncoderSize();
-  const enc = wasm._malloc(encsize);
-
-  const decsize = wasm._getDecoderSize();
-  const dec = wasm._malloc(decsize);
-  
   var iter = 0;
 
-  console.log('init encoder: ', wasm._initEnc(enc));
-  console.log('init decoder: ', wasm._initDec(dec));
-
+  //common
   const OpusBufferSize = 480;
   const OpusPacketSize = 1500; // 68 is actual size, padding is enabled
+
+  // encoder 
+  const encsize = wasm._getEncoderSize();
+  const enc = wasm._malloc(encsize);
+  console.log('init encoder: ', wasm._initEnc(enc));
+  //ringbuffer to match audiocontext frame size with opus frame size
   const iRB = new channelRingBuffer(480, 1);
-  const oRB = new channelRingBuffer(480, 1);
   const iH =  new HeapAudioBuffer(wasm, 480, 1);
+
+  //decoder 
+  const decsize = wasm._getDecoderSize();
+  const dec = wasm._malloc(decsize);
+  console.log('init decoder: ', wasm._initDec(dec));
+  const oRB = new channelRingBuffer(480, 1);
   const oH = new HeapAudioBuffer(wasm, 480, 1);
   const JB = new JitterBuffer();
   const PDpointer = wasm._malloc(OpusPacketSize);
@@ -104,18 +76,12 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
   //console.log(iH, oH);
   var seq = 98375773;
   encoderNode.onaudioprocess = async function(audioProcessingEvent) {
+    //for debugging 
     iter += 1;
-    ///
+    
     var inputBuffer = audioProcessingEvent.inputBuffer;
     var outputBuffer = audioProcessingEvent.outputBuffer;
-/*
-      for (var sample = 0; sample < inputBuffer.length; sample++) {
-        // make output equal to the same as the input
-//        outputBuffer.getChannelData(0)[sample] = inputBuffer.getChannelData(0)[sample];
-        // add noise to each output sample
-        inputBuffer.getChannelData(0)[sample] += ((Math.random() * 2) - 1) * 0.2;         
-      }
-*/ 
+
     iRB.push(inputBuffer.getChannelData(0));
     //console.log(iRB.framesAvailable);
     
@@ -123,7 +89,9 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
     if (iRB.framesAvailable >= OpusBufferSize) {
       //console.log(iH._channelData[0][0]);
       iRB.pull(iH.getChannelData(0));
-      const packet = wasm._malloc(1500);
+
+      //FIXME: if we have to copy the packet later anyway, then this is not needed
+      const packet = wasm._malloc(OpusPacketSize);
       const encret = wasm._encode(enc, iH.getHeapAddress(), packet);
       //console.log(encret);
       if ( encret < 0 ) {
@@ -132,7 +100,7 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
       
      
      // console.log('ret, packet: ', ret, packet);
-     const packetv = wasm.HEAP8.subarray(packet, packet + 1500);
+     const packetv = wasm.HEAP8.subarray(packet, packet + OpusPacketSize);
     //console.log(packetv);
     try {
     var ciphertext = await encrypt(document.hush_key, packetv);
@@ -140,10 +108,10 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
       console.log('encryption failed', e);
     }
     
+    wasm._free(packet);
     seq += 1;
-   
-
     //---- > here is where the packet gets send 
+  
     try {  
       var decrypted = await decrypt_uint8array(document.hush_key, ciphertext);
       //FIXME: figure out how to store this immediately in the heap
@@ -183,47 +151,16 @@ var encoderNode = actx.createScriptProcessor(256, 1, 1);
      
       PDab.set(new Uint8Array(toplay))
             //FIXME 1500 should be opus length
-      const decret = wasm._decode(dec, PDpointer, 1500, oH.getHeapAddress());
+      const decret = wasm._decode(dec, PDpointer, OpusPacketSize, oH.getHeapAddress());
       if ( decret < 0 ) {
         console.log('packet decode error: ', decret, encret, PDab, toplay, PDpointer);
       }
     } 
-    
-    //-------
-    //var asfloat = new dataView(plaintext, 0, 1500).getFloat32
-    //var asfloat = new Float32Array(decoded);
-      // Do stuff (like encrypting the packet and sending it here )
-      wasm._free(packet);
-    //console.log(packetv);
 
       oRB.push(oH.getChannelData(0));
     }
 
-
-    // Loop through the samples
-    /*
-    console.log('oooo');
-      for (var sample = 0; sample < inputBuffer.length; sample++) {
-        // make output equal to the same as the input
-       // outputBuffer.getChannelData(0)[sample] = inputBuffer.getChannelData(0)[sample];
-
-        // add noise to each output sample
-        outputBuffer.getChannelData(0)[sample] += ((Math.random() * 2) - 1) * 0.2;         
-      }
-        
-    console.log(inputBuffer.getChannelData(0)[1], outputBuffer.getChannelData(0)[1]);
-*/
-    // play decoded to test
     oRB.pull(outputBuffer.getChannelData(0));
-    /*
-     for (var sample = 0; sample < inputBuffer.length; sample++) {
-        // make output equal to the same as the input
-//        outputBuffer.getChannelData(0)[sample] = inputBuffer.getChannelData(0)[sample];
-
-        // add noise to each output sample
- //       outputBuffer.getChannelData(0)[sample] += ((Math.random() * 2) - 1) * 0.2;         
-      }
- */ 
 
   }
  

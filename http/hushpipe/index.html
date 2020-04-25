@@ -36,6 +36,14 @@
 	<legend>Hushpipe controls</legend>
 	<button id="hush_newroom">New room + key</button>
 	<button id="hush_getkey">Clear</button>
+  <select id="hush_serverselect">
+    <option value='ws://localhost:8188'>Localhost, ws</option>
+    <option value='wss://hlsorigindev.laglab.org/janus'>Testserver, wss</option>
+    <option value='https://hlsorigindev.laglab.org/janushttp'>Testserver, https</option>
+
+
+
+  </select>
 	<div>
 	  <label>Room key: </label><span id="hush_room_key_label"></span>
 	</div>

@@ -277,10 +277,10 @@ hush_new_pipe(where, id)
       return where.querySelector("#div_" + id);
     } else { // new feed
       // this is the div in the userdiv
-      const div = document.createElement('div');
+      const div = document.createElement('fieldset');
       div.setAttribute('id', "div_" + id);
       div.setAttribute('class', "div" + id);
-      let title = document.createElement('h6');
+      let title = document.createElement('legend');
       title.textContent = "pipe: " + id;
       div.appendChild(title);
       
@@ -324,10 +324,10 @@ hush_new_feed(where, id)
       return where.querySelector("#div_" + id);
     } else { // new feed
       // this is the div in the userdiv
-      const div = document.createElement('div');
+      const div = document.createElement('fieldset');
       div.setAttribute('id', "div_" + id);
       div.setAttribute('class', "div_video_high");
-      let title = document.createElement('h1');
+      let title = document.createElement('legend');
       title.textContent = "video_high: " + id;
       div.appendChild(title);
 	const vid = document.createElement('video');

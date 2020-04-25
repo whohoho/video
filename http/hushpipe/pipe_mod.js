@@ -2,7 +2,7 @@
 import "./pipe-common.js";
 //import * as mediarecorder from "./audiorecorder.js";
 import * as mediaplayer from "./pipe-common.js";
-
+import * as utils from "./utils.js";
 
 
 
@@ -29,57 +29,6 @@ const RECOPT = {
 	      mimeType : MIMETYPE,
  	    };
 
-export async function please_encrypt(blob_event, t){
-      //debug('chan in please_encrypt: ', t.channel, t.encryptor);
-      try {
-      var ciphertext = await t.encryptor(blob_event.data);
-      } catch (err) { warn('encryption failed', err); }
-      try {
-        t.channel.send(ciphertext);
-      } catch (err) { warn('send failed: ', err) }
-
-  }
-
-function create_vu(stream, t) {
-      // vu meter
-    const audioContext = new AudioContext();
-    const analyser = audioContext.createAnalyser();
-    const microphone = audioContext.createMediaStreamSource(stream);
-    const javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
-
-    analyser.smoothingTimeConstant = 0.3;
-    analyser.fftSize = 1024;
-
-    microphone.connect(analyser);
-    analyser.connect(javascriptNode);
-    javascriptNode.connect(audioContext.destination);
-    
-    const canvas = document.createElement('canvas');
-
-    t.status_el.appendChild(canvas);
-
-    const canvasContext = canvas.getContext("2d");
-    javascriptNode.onaudioprocess = function() {
-        var array =  new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(array);
-        var values = 0;
-
-        var length = array.length;
-        for (var i = 0; i < length; i++) {
-            values += array[i];
-        }
-
-        var average = values / length;
-        canvasContext.clearRect(0, 0, 60, 130);
-        canvasContext.fillStyle = '#00ff00';
-        canvasContext.fillRect(0,130-average,25,130);
-    }
-
-
-
-
-}
-
 function
 record(t)
 {
@@ -87,7 +36,7 @@ record(t)
       const rec_handle = new MediaRecorder(s);
       rec_handle.ondataavailable = function (data) { 
 //        console.log('audiorecord callback ', data);
-        please_encrypt(data, t); 
+        utils.please_encrypt(data, t); 
       }
       rec_handle.start(REC_MS);
   }
@@ -95,7 +44,7 @@ record(t)
       CAPTURE_CONSTRAINTS,
       function (stream) { 
         capture_works(stream, t);
-        create_vu(stream, t);
+        utils.create_vu(stream, t);
 
       },
       e=>warn('navigator.getUserMedia err:',e)
@@ -154,8 +103,15 @@ export function create_sender(status_el, channel, encryptor) {
     loge.appendChild(br);
   }
 
-  //let log = (status_el) => (msg) => local_log(status_el, msg);
+  // datachannel stats
+  let cstats = document.createElement('pre');
+  var br = document.createTextNode(" stats here\n");
+  cstats.appendChild(br);
+  status_el.appendChild(cstats);
+  window.setInterval(utils.rendercstats(cstats, channel), 2000);
 
+  //let log = (status_el) => (msg) => local_log(status_el, msg);
+  
   const t = {
     log: log,
     status_el: status_el,
@@ -166,7 +122,7 @@ export function create_sender(status_el, channel, encryptor) {
   log('chan in create_sender: ', channel, t);
   log('cryp in create_sender: ', encryptor);
 
-  let title = document.createElement('h1');
+  let title = document.createElement('legend');
   title.textContent = "audiosender";
   status_el.appendChild(title);
 
@@ -208,36 +164,11 @@ export function create_receiver(pipe_el, channel, decryptor) {
 
   //create_observer(pipe_el);
   
-  let title = document.createElement('h1');
+  let title = document.createElement('legend');
   title.textContent = "audioreceiver";
   pipe_el.appendChild(title);
 
-      ///....
-  /*
-  m_source.addEventListener("message", t.log('source ended'));
-  m_source.addEventListener("open", t.log('source open'));
-  
-  m_source.addEventListener(
-    'sourceopen',
-    e => {
-      t.log('m_source:sourceopen', e);
-//      console.log('audio state: ', pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
-
-      audio.onerror = function() {
-          console.log("audio Error " + audio.error.code + "; details: " + videoElement.error.message);
-          audio.buf = m_source.addSourceBuffer(MIMETYPE);
-          audio.buf.mode = 'sequence';
- 
-
-      }
-      audio.buf = m_source.addSourceBuffer(MIMETYPE);
-      audio.buf.mode = 'sequence';
-     
- 
-    });
-    */
-
-   channel.addEventListener("open", console.log);
+  channel.addEventListener("open", console.log);
   channel.addEventListener("close", console.log);
 
  }

@@ -1,3 +1,6 @@
 [submodule "http/hushpipe/opuswasm/opus"]
 	path = http/hushpipe/opuswasm/opus
 	url = https://github.com/xiph/opus.git
+[submodule "http/hushpipe/codec2wasm/codec2"]
+	path = http/hushpipe/codec2wasm/codec2
+	url = https://github.com/drowe67/codec2.git

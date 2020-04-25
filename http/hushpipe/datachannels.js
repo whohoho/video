@@ -1,5 +1,9 @@
 'use strict';
 import * as audiopipe from "./pipe_mod.js";
+import * as opuspipe from "./opuspipe.js";
+import * as chat from "./chat.js";
+
+
 //import { create_sender } from "./pipe_mod.js";
 
 import { hush_new_feed, hush_new_pipe ,hush_play_datachannel } from "./hushpipe.js";
@@ -269,11 +273,24 @@ async function attachPublisher(ctx) {
   ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
   const myface = document.getElementById('myface');
-  const audiosend_el = myface.appendChild(document.createElement('div'));
-  //const audiosend_el = document.getElementById('audiosender');
+    //const audiosend_el = document.getElementById('audiosender');
 
+  //audio normal
   const audioChannel = newDataChannel("audio_" + ctx.user_id);
+  const audiosend_el = myface.appendChild(document.createElement('fieldset'));
   audiopipe.create_sender(audiosend_el, audioChannel, ctx.encryptor);
+
+  // audio wasm opus
+  const opusChannel = newDataChannel("opus_" + ctx.user_id);
+  const opussend_el = myface.appendChild(document.createElement('fieldset'));
+  opuspipe.create_sender(opussend_el, opusChannel, ctx.encryptor);
+
+ //chat
+  const chatChannel = newDataChannel("chat");
+  const chat_el = myface.appendChild(document.createElement('fieldset'));
+  chat.create_duplex(chat_el, chatChannel, ctx.encryptor, ctx.decryptor);
+
+
 
   await waitForEvent("webrtcup", handle);
 
