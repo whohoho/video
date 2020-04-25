@@ -6,12 +6,46 @@
     <style>
       body { font-family: sans-serif; }
       .div_video_high { border: 1px solid; }
+      /*
       .friend_div { 
         border: 4px solid;
-        margin: 10px 10px 10px 10px;
+         margin: 3px 3px 3px 3px; 
         background-color: lightblue;
       }
+      */
+      /*
+      fieldset {
+        display: block;
+        margin-inline-start: 0px;
+        margin-inline-end: 0px;
+        padding-block-start: 0px;
+        padding-inline-start: 0px;
+        padding-inline-end: 0px;
+        padding-block-end: 0px;
+        border-width: 1px;
+        border-style: groove;
+        border-color: threedface;
+        border-image: initial;
 
+      }
+      */
+      .grid > fieldset {
+        width: 28vw; 
+         height: 28vh; 
+        overflow: auto;
+        border: 1px solid;
+        min-inline-size: unset;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        /* grid-gap: 2px; */
+        /*
+        grid-auto-rows: minmax(30%, 400px); 
+        grid-auto-columns: minmax(29%, 400px); 
+        */
+      }
     </style>
 
     <!-- Adapter.js from Google, try to fix old/broken browsers -->
@@ -55,29 +89,9 @@
     </p>
 
 
-    <form method="GET">
-      <label>JanusServer:
-	<input id="janusServer" name="janus"/></label>
-      <input type="submit" value="Go" /></form>
-    <p><label>Status: </label><span id="status"></span></p>
-
-    <p>
-      <button id="micButton">Share microphone</button>
-      <button id="screenButton">Share screen</button>
-      <button id="cameraButton">Share camera</button>
-    </p>
-
-    <fieldset>
-      <legend>Data messages</legend>
-      <div><label>Message count: </label><span id="messageCount"></span></div>
-      <button id="saveButton">Save</button>
-      <button id="clearButton">Clear</button>
-    </fieldset>
-
     <fieldset>
       <legend>Mirror (you)</legend>
-      <div id="myface"> 
-        <div id="audiosender"> </div>
+      <div id="myface" class="grid"> 
       </div>
     </fieldset>
 
@@ -85,7 +99,7 @@
       <legend>Friends</legend>
       <button id="hush_render_friends">update Friends</button>
 
-      <div id="friends">
+      <div id="friends" class="grid">
       </div>
     </fieldset>
 

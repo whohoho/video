@@ -75,12 +75,12 @@ export function getUserEl(userId) {
     // user is already known
     return document.getElementById(elid);
   } else {  // user not seen before
-    const user = document.createElement('div');
+    const user = document.createElement('fieldset');
     user.janus_user_id = userId;
     user.setAttribute('id', elid);
     user.setAttribute('class', 'friend_div');
     users.appendChild(user);
-    let title = document.createElement('h3');
+    let title = document.createElement('legend');
     title.textContent = userId;
     user.appendChild(title);
     return user;
