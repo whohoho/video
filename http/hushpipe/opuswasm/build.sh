@@ -1,8 +1,8 @@
 #!/usr/bin/env bash 
 set -eux
 source ../../../../emsdk/emsdk_env.sh
-#emsdk activate latest
-emsdk activate latest-fastcomp
+emsdk activate latest
+#emsdk activate latest-fastcomp
 #emcc --bind -O1 \
 #	  -s WASM=1 \
 #		-s BINARYEN_ASYNC_COMPILATION=0 \

@@ -3,7 +3,15 @@
 set -eux 
 
 source ../../../../emsdk/emsdk_env.sh
-emsdk activate latest-fastcomp
+
+# non llvm backend
+#emsdk activate latest-fastcomp
+
+# llvm backend
+../../../../emsdk/emsdk activate latest
+
+#emsdk activate latest
+
 
 cd opus
 git status

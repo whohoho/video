@@ -7,12 +7,34 @@ to get a janus + nginx serving the html:
 docker-compose -f docker-compose-local.yml up (or setup a janus with the janus-sfu module yourself)
 ````
 
+install emscripten sdk: 
+
+````
+cd ../
+git clone https://github.com/emscripten-core/emsdk.git
+./emsdk update-tags
+./emsdk install latest
+
+# only if latest does not work: #./emsdk install latest-fastcomp
+````
+
+build opus wasm: 
+````
+cd http/hushpipe/opuswasm
+git submodule init
+git submodule update
+./buildopus.sh
+./build.sh
+````
+
 start some chromium's:
 ````
 chromium --temp-profile --use-fake-device-for-media-stream http://localhost:80/hushpipe/
 
 chromium --temp-profile --use-fake-device-for-media-stream --use-file-for-fake-video-capture=/home/user/javascript/hushtalk/foreman.y4m http://localhost:80/hushpipe/
 ````
+
+
 
 Roadmap:
 
