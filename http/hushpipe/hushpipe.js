@@ -1,6 +1,7 @@
 /* Ask for fewer silent errors: */
 'use strict';
 
+import * as utils from "./utils.js";
 import * as audiopipe from "./pipe_mod.js";
 //import * as dc from "./datachannels.js";
 import { create_sender } from "./pipe_mod.js";
@@ -75,7 +76,7 @@ hush_read_key()
     console.log('crypt functions: ', ctx.encryptor, ctx.decryptor);
 
     gctx = ctx;
-    dc.janus_connect(ctx, "ws://localhost:8188");
+    dc.janus_connect(ctx);
     return true;
 }
 
@@ -108,7 +109,7 @@ hush_newroom()
 
 // takes datachannel event + feed element (div with 1 video inside)
 export async function hush_play_datachannel(evt, feed) {
-	 //console.log("new video buffer: ", evt, feed);
+	 console.log("new video buffer: ", evt, feed);
 
    var uint8View = new Uint8Array(evt.data);
    hush_play_video(uint8View, feed)
@@ -216,40 +217,21 @@ hush_camera_record()
       //let svt = s.getVideoTracks()[0];
 
       hush_camera_loopback = hush_new_feed($('#myface'), "video_high");
-
+      console.log('creating recorder for: ', s);
       hush_camera_handle = new MediaRecorder(s, {
         codec: HUSH_CODEC, 
         audioBitsPerSecond: 160,
         videoBitsPerSecond: 160,
 
       });
+      console.log('recorder is: ', hush_camera_handle);
+
       hush_camera_handle.mode = 'sequence';
       hush_camera_handle.ondataavailable = please_encrypt;
       hush_camera_handle.start(1000); /* TODO sample every n milliseconds */
   }
-    let constraints = {
-	video: {
-   // width: { min: 240, ideal: 480, max: 500},
-   // height: { min: 180, ideal: 360, max: 400},
-      "height":{"exact":240},
-      "width":{"exact":320},
-	    frameRate: { ideal: 20, max: 25, } /* or just video:true*/
-	    // facingMode: 'user' // use selfie-cam, !shoot-my-swimming-pool-cam
-	},
-	/* audio: {
-	   noiseSuppression: true,
-	   echoCancellation: true,
-	   // sampleRate: 99999, /// Hz
-	   //latency: 99.99, /// seconds
-	}
-	*/
-    }
-  
-  var m = navigator.getUserMedia(
-      constraints,
-      camera_works,
-      e=>console.log('navigator.getUserMedia err:',e)
-  );
+
+  camera_works(document.capturestream);
 }
 
 function
@@ -385,7 +367,8 @@ async function
 hush_onload()
 {
     console.log('hushpipe \nTRY\nTRY\nTRY\nTRY\nTRY\nloading');
-
+    utils.find_media_devices();
+    await utils.start_stream();
     $('#hush_newroom').onclick = hush_newroom;
     $('#hush_camera_record').onclick = hush_camera_record;
     $('#hush_camera_stop').onclick = hush_camera_stop;
@@ -403,6 +386,18 @@ hush_onload()
     }
 
     console.log('hushpipe \nOK\nOK\nOK\nOK\nOK\nOK\nloading');
+
+    // dom event listener
+    var f = document.getElementById('friends');
+    var m = document.getElementById('myface');
+
+    function elemDel(evt) {
+      console.log('elemdel: ', evt);
+    }
+    //f.addEventListener('DOMNodeRemoved', elemDel, false);
+    //m.addEventListener('DOMNodeRemoved', elemDel, false);
+
+
 
     /*
      * Auto-play shit:

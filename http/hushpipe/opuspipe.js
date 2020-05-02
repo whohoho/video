@@ -102,7 +102,8 @@ export function create_sender(status_el, channel, encryptor) {
   var br = document.createTextNode(" stats here\n");
   cstats.appendChild(br);
   status_el.appendChild(cstats);
-  window.setInterval(utils.rendercstats(cstats, channel), 2000);
+ // window.setInterval(utils.rendercstats(cstats, channel), 2000);
+   window.setInterval(function () { utils.rendercstats(cstats, channel); }, 2000);
  
   //let log = (status_el) => (msg) => local_log(status_el, msg);
   

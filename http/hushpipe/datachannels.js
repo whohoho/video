@@ -1,4 +1,5 @@
 'use strict';
+import * as utils from "./utils.js";
 import * as audiopipe from "./pipe_mod.js";
 import * as opuspipe from "./opuspipe.js";
 import * as chat from "./chat.js";
@@ -22,9 +23,14 @@ const DATACHAN_CONF = {
 
 const PEER_CONNECTION_CONFIG = {
     iceServers: [
-// TODO here we can add STUN servers
-//    { urls: "stun:stun.l.google.com:19302" },
-//    { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
+    {
+      urls: [ "turns:pipe.puscii.nl", "turn:pipe.puscii.nl" ],
+      username: "turnuser",
+      credential: "verysecretpassword"
+    },
+    { 
+      urls: "stun:pipe.puscii.nl" 
+    },
   ]
 };
 
@@ -42,11 +48,22 @@ function isError(signal) {
 */
 
 // connect to janus (the SFU server)
-export function janus_connect(ctx, server) {
+export function janus_connect(ctx) {
 //  console.log("1 ctx in janus_connect: ", ctx);
 
+  var serverselect = document.getElementById('hush_serverselect');
+  var server = serverselect.value;
   var ws = new WebSocket(server, "janus-protocol");
   var session = ctx.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
+
+
+
+  serverselect.addEventListener('change', (event) => {
+    console.log('server changed');
+    session.dispose();
+    janus_connect(ctx);
+  });
+
   // FIXME, what does this do?? // session.isError = isError;
   //
 
@@ -55,6 +72,21 @@ export function janus_connect(ctx, server) {
     session.receive(JSON.parse(ev.data))
   }
   ws.addEventListener("message", ev => receiveMsg(session,ev));
+
+  ws.addEventListener("close", (socket) => {
+    console.log('ws closed');
+    session.destroy();
+   const s = document.getElementById("myface");
+    while (s.firstChild) {
+      s.removeChild(s.lastChild);
+    }
+    const f = document.getElementById("friends");
+    while (f.firstChild) {
+      f.removeChild(s.lastChild);
+    }
+
+
+  });
 
   ws.addEventListener("open", (socket) => {
 
@@ -157,14 +189,23 @@ function associate(conn, handle, debugmsg) {
   });
   handle.on("event", ev => {
     if (ev.jsep && ev.jsep.type == "offer") {
-      console.info("Accepting new offer for handle: ", handle, debugmsg);
+      console.info("Accepting new offer for handle: ", handle, debugmsg, ev);
       var answer = conn.setRemoteDescription(ev.jsep).then(_ => conn.createAnswer());
       var local = answer.then(a => conn.setLocalDescription(a));
       var remote = answer.then(j => handle.sendJsep(j));
       Promise.all([local, remote]).catch(e => console.error("Error negotiating answer: ", e));
+    } else if (ev.jsep && ev.jsep.type == "answer") {
+      //console.log('associate: jsep answer', ev);
+      // FIXME!! figure out how this whole jsep stuff actually works
+      console.info("associate:  answer for handle: ", handle, debugmsg, ev);
+      //conn.setRemoteDescription(ev.jsep)
+      //var local = answer.then(a => conn.setLocalDescription(a));
+      //var remote = answer.then(j => handle.sendJsep(j));
+      //Promise.all([local, remote]).catch(e => console.error("Error negotiating answer: ", e));
+
     } else {
-      //console.log('other event');
-      //console.log(ev);
+        console.log('associate: unknown', ev);
+
     }
   });
 }
@@ -250,8 +291,8 @@ async function attachPublisher(ctx) {
         console.log('jsep offer, handled in other place');
       } else {
 
-        if (ev.jsep) {
-          console.log('jsep event, but not offer', ev);
+        if (ev.jsep && ev.jsep.type == "answer") {
+          console.log('jsep answer', ev);
         } else {
 
           console.log('unhandled event: ', ev);
@@ -273,6 +314,15 @@ async function attachPublisher(ctx) {
   ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
   const myface = document.getElementById('myface');
+ let cstats = document.createElement('pre');
+  var br = document.createTextNode(" stats here\n");
+  cstats.appendChild(br);
+  myface.appendChild(cstats);
+  window.setInterval(function () { utils.rendercstats(cstats, ctx.videoChannel); }, 2000);
+
+
+
+
     //const audiosend_el = document.getElementById('audiosender');
 
   //audio normal
@@ -324,6 +374,13 @@ function attachSubscriber(ctx, otherId) {
   const videofeed = hush_new_feed(userEl, "video_high");
   let curryplayvideo = (videofeed) => (evt) => hush_play_datachannel(evt, videofeed);
   chan_video_high.addEventListener("message", curryplayvideo(videofeed));
+
+  let cstats = document.createElement('pre');
+  var br = document.createTextNode(" stats here\n");
+  cstats.appendChild(br);
+  userEl.appendChild(cstats);
+  window.setInterval(function () { utils.rendercstats(cstats, chan_video_high); }, 2000);
+
 
   //audio
   const chan_audio = newDataChannel("audio_" + otherId);

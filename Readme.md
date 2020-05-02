@@ -53,6 +53,11 @@ Later:
 * put messages in some translation file
 * relay selection (with rtt indication)
 
+Todo cross browser support:
+* websocket fallback for torbrowser ( complete webrtc stack is disabled )
+  - https://github.com/ShareIt-project/DataChannel-polyfill
+  - https://github.com/cloudtrends/webrtc-datachannel-polyfill/blob/master/datachannel.js
+
 
 
 
