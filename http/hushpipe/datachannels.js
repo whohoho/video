@@ -1,13 +1,13 @@
 'use strict';
 import * as utils from "./utils.js";
 import * as audiopipe from "./pipe_mod.js";
-import * as opuspipe from "./opuspipe.js";
-import * as chat from "./chat.js";
+//import * as opuspipe from "./opuspipe.js";
+//import * as chat from "./chat.js";
 
 
 //import { create_sender } from "./pipe_mod.js";
 
-import { hush_new_feed, hush_new_pipe ,hush_play_datachannel } from "./hushpipe.js";
+import { hush_new_pipe } from "./hushpipe.js";
 
 //FIXME
 var janusconn;
@@ -147,6 +147,7 @@ function removeUser(ctx, userId) {
   }
 
   const userelem = getUserEl(userId);
+  //userelem.destroy();
   userelem.parentNode.removeChild(userelem);
 
   // FIXME: get rid of ctx.subscribers
@@ -311,25 +312,14 @@ async function attachPublisher(ctx) {
   ctx.controlChannel = newDataChannel("hushpipe_controlchannel");
  
   // this is the channel we gonna publish video on
-  ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
+  //ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
   const myface = document.getElementById('myface');
- let cstats = document.createElement('pre');
-  var br = document.createTextNode(" stats here\n");
-  cstats.appendChild(br);
-  myface.appendChild(cstats);
-  window.setInterval(function () { utils.rendercstats(cstats, ctx.videoChannel); }, 2000);
 
-
-
-
-    //const audiosend_el = document.getElementById('audiosender');
-
-  //audio normal
-  const audioChannel = newDataChannel("audio_" + ctx.user_id);
   const audiosend_el = myface.appendChild(document.createElement('fieldset'));
-  audiopipe.create_sender(audiosend_el, audioChannel, ctx.encryptor);
+  audiopipe.create_sender(audiosend_el, "audio_" + ctx.user_id, janusconn, ctx.encryptor);
 
+  /*
   // audio wasm opus
   const opusChannel = newDataChannel("opus_" + ctx.user_id);
   const opussend_el = myface.appendChild(document.createElement('fieldset'));
@@ -339,7 +329,7 @@ async function attachPublisher(ctx) {
   const chatChannel = newDataChannel("chat");
   const chat_el = myface.appendChild(document.createElement('fieldset'));
   chat.create_duplex(chat_el, chatChannel, ctx.encryptor, ctx.decryptor);
-
+*/
 
 
   await waitForEvent("webrtcup", handle);
@@ -368,27 +358,28 @@ function attachSubscriber(ctx, otherId) {
   var handle = new Minijanus.JanusPluginHandle(ctx.session);
   addExisting(conn, handle, "attach subscriber: " + otherId);
 
-  // video
-  const chan_video_high = newDataChannel("video_high_" + otherId);
   const userEl = getUserEl(otherId);
+  // video
+  /* TEMP
+  const chan_video_high = newDataChannel("video_high_" + otherId);
   const videofeed = hush_new_feed(userEl, "video_high");
   let curryplayvideo = (videofeed) => (evt) => hush_play_datachannel(evt, videofeed);
   chan_video_high.addEventListener("message", curryplayvideo(videofeed));
-
   let cstats = document.createElement('pre');
   var br = document.createTextNode(" stats here\n");
   cstats.appendChild(br);
   userEl.appendChild(cstats);
   window.setInterval(function () { utils.rendercstats(cstats, chan_video_high); }, 2000);
 
+  */
 
   //audio
-  const chan_audio = newDataChannel("audio_" + otherId);
+  //const chan_audio = newDataChannel("audio_" + otherId);
 
   // new_pipe creates a div with id "audio" under the user div
   const audiofeed = hush_new_pipe(userEl, "audio"); 
-  audiopipe.create_receiver(audiofeed, chan_audio, ctx.decryptor);
-
+  audiopipe.create_receiver(audiofeed, "audio_" + otherId, janusconn, ctx.decryptor);
+ 
   
   return handle.attach("janus.plugin.sfu")
     .then(_ => handle.sendMessage({ kind: "join", room_id: ctx.roomId, user_id: ctx.user_id, subscribe: { media: otherId }}))

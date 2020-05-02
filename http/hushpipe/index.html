@@ -3,59 +3,7 @@
   <head>
     <meta charset="utf-8">
     <title>Tiny test page</title>
-    <style>
-      body { font-family: sans-serif; }
-      .div_video_high { border: 1px solid; }
-      /*
-      .friend_div { 
-        border: 4px solid;
-         margin: 3px 3px 3px 3px; 
-        background-color: lightblue;
-      }
-      */
-      /*
-      fieldset {
-        display: block;
-        margin-inline-start: 0px;
-        margin-inline-end: 0px;
-        padding-block-start: 0px;
-        padding-inline-start: 0px;
-        padding-inline-end: 0px;
-        padding-block-end: 0px;
-        border-width: 1px;
-        border-style: groove;
-        border-color: threedface;
-        border-image: initial;
-
-      }
-      */
-      .grid > fieldset {
-        width: 28vw; 
-         height: 28vh; 
-        overflow: auto;
-        border: 1px solid;
-        min-inline-size: unset;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        /* grid-gap: 2px; */
-        /*
-        grid-auto-rows: minmax(30%, 400px); 
-        grid-auto-columns: minmax(29%, 400px); 
-        */
-      }
-    </style>
-
-    <!-- Adapter.js from Google, try to fix old/broken browsers -->
-<!--    <script src="adapter.js"></script> --?
-
-    <!-- Janus client library -->
-    <!--    <script src="bundle.js"></script> -->
-
-    <!-- Datachannels with janux -->
-    <!--    <script src="datachannels.js"></script> -->
+    <link rel="stylesheet" type="text/css" href="hushpipe.css">
 
     <!-- HushPipe crypto library -->
     <script src="crypto.js"></script>
@@ -80,12 +28,14 @@
 	<div>
 	  <label>Room key: </label><span id="hush_room_key_label"></span>
 	</div>
+  
 	<button id="hush_camera_record">Record camera</button>
 	<button id="hush_camera_stop">STOP camera</button>
 	<button id="hush_camera_pause">PAUSE camera</button>
 	<button id="hush_camera_resume">RESUME camera</button>
+  
       </fieldset>
-      <fieldset id="hushpipe_capture_controls">
+      <fieldset id="hushpipe_capture_controls" class="hushpipe_capture_controls">
         <legend> camera / mic controls </legend>
        
         <!-- which camera, camera enabled, etc. -->
@@ -95,7 +45,7 @@
 
 
     <fieldset>
-      <legend>Mirror (you)</legend>
+      <legend>Sending controls</legend>
       <div id="myface" class="grid"> 
       </div>
     </fieldset>

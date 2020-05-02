@@ -197,24 +197,32 @@ export async function start_stream() {
 
 }
 
-function formel(type, elem, name) {
-  const cb = document.createElement("input");
-  cb.type = type;
+export function formel(type, elem, name, callback) {
+  if (type == 'select') {
+    var cb = document.createElement("select");
+  } else {
+    var cb = document.createElement("input");
+    cb.type = type;
+  }
   const label = document.createElement("label");
   label.textContent = name;
+  label.setAttribute('for',name);
+  label.setAttribute('id', name + "_label");
+  label.setAttribute('class', 'formthing');
   cb.setAttribute('id', name);
+
   elem.appendChild(cb);
   elem.appendChild(label);
-  cb.onchange = function () { start_stream() }; 
-
+  cb.onchange = callback; 
+  return cb;
 }
 
 export function find_media_devices() {
   // List cameras and microphones.
 
   var elem = document.getElementById('hushpipe_capture_controls');
-  formel('checkbox', elem, 'audiomute');
-  formel('checkbox', elem, 'videomute');
+  formel('checkbox', elem, 'audiomute', start_stream);
+  formel('checkbox', elem, 'videomute', start_stream);
   //formel('checkbox', elem, 'selfiecam');
 
 
@@ -226,16 +234,11 @@ export function find_media_devices() {
   //FIXME: only have it enumerate mics / cams
   navigator.mediaDevices.enumerateDevices()
   .then(function(devices) {
-    const audioselect = document.createElement("select");
-
-    const videoselect = document.createElement("select");
-    audioselect.setAttribute('id', 'micselect');
-    videoselect.setAttribute('id', 'camselect');
-
+    const audioselect = formel('select', elem, 'micselect', start_stream);
+    const videoselect = formel('select', elem, 'camselect', start_stream);
 
     audioselect.appendChild(new Option('default', 'default', true, true));
     videoselect.appendChild(new Option('default', 'default', true, true));
-
 
     devices.forEach(function(device) {
       if (device.kind == 'audioinput') {
@@ -248,12 +251,6 @@ export function find_media_devices() {
                     " id = " + device.deviceId);
       }
     });
-    let t = {};
-    videoselect.onchange = function () { start_stream() };
-    audioselect.onchange = function () { start_stream() }; 
-
-    elem.appendChild(audioselect);
-    elem.appendChild(videoselect);
     
   })
   .catch(function(err) {
@@ -265,9 +262,9 @@ export function find_media_devices() {
 };
 
 export function rendercstats (cstats, channel)  {
-    var text =         channel.binaryType
-               + '\n buff: ' + channel.bufferedAmount
-               + '\n bufftresh: ' + channel.bufferedAmountLowThreshold
+    var text = 'buff: ' + channel.bufferedAmount
+               + '\nbufftresh: ' + channel.bufferedAmountLowThreshold
+  /*
                + '\n id: ' + channel.id
                + '\n label: ' + channel.label
                + '\n label: ' + channel.maxPacketLifetime
@@ -275,10 +272,11 @@ export function rendercstats (cstats, channel)  {
                + '\n negotiated: ' + channel.negotiated
                + '\n ordered: ' + channel.ordered
                + '\n proto: ' + channel.protocol
-               + '\n readyState: ' + channel.readyState
-
-               + '\n -- ';
+               */
+               + '\nreadyState: ' + channel.readyState
+    
     var br = document.createTextNode(text + "\n");
+    cstats.setAttribute('class', 'hushpipe_cstats');
     cstats.replaceChild(br, cstats.childNodes[0]);
   }
 
@@ -306,6 +304,7 @@ export async function please_encrypt(blob_event, t){
               break;
             case "closed":
               console.log("Error! Attempt to send while connection closed.", blob_event);
+              blob_event.srcElement.stop();
               break; 
         }
 

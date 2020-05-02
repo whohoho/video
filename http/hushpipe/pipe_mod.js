@@ -1,14 +1,8 @@
 'use strict';
 import "./pipe-common.js";
-//import * as mediarecorder from "./audiorecorder.js";
 import * as mediaplayer from "./pipe-common.js";
 import * as utils from "./utils.js";
-
-
-
 export const NAME = 'audio';
-// the type of datachannel this module wants
-
 const isDebug = true
 
 if (isDebug) var debug = console.log.bind(window.console)
@@ -16,10 +10,18 @@ else var debug = function(){}
 
 var warn = console.log.bind(window.console)
 
+const DATACHAN_CONF = {
+  ordered: false, 
+  maxRetransmits: 0,
+//  maxPacketLifeTime: null,
+  protocol: "",
+//  negotiated: false,
+};
+
+
 
 const TYPE = 'audio'
 
-const CAPTURE_CONSTRAINTS = {audio: true};
 const MIMETYPE = 'audio/webm;codecs=opus';
 const REC_MS = 10;
 const RECOPT = { 
@@ -29,27 +31,20 @@ const RECOPT = {
 	      mimeType : MIMETYPE,
  	    };
 
-function
-record(t)
-{
-  async function capture_works(s, t){
-      const rec_handle = new MediaRecorder(s);
-      rec_handle.ondataavailable = function (data) { 
+async function capture_works(s, t){
+      if (t.rec_handle) {
+        console.log('already got a recorder, recreating it');
+        t.rec_handle.stop();
+        t.rec_handle = undefined;
+      };
+      rec_handle = new MediaRecorder(s);
+      t.rec_handle = rec_handle;
+      t.rec_handle.ondataavailable = function (data) { 
 //        console.log('audiorecord callback ', data);
         utils.please_encrypt(data, t); 
       }
-      rec_handle.start(REC_MS);
+      t.rec_handle.start(REC_MS);
   }
-  var m = navigator.getUserMedia(
-      CAPTURE_CONSTRAINTS,
-      function (stream) { 
-        capture_works(stream, t);
-        utils.create_vu(stream, t);
-
-      },
-      e=>warn('navigator.getUserMedia err:',e)
-  );
-}
 
 // takes datachannel event + feed element (div with 1 video inside)
 async function play_datachannel(evt, t) {
@@ -69,7 +64,7 @@ async function play(ciphertext, t) {
    var plain = await t.decryptor(ciphertext);
     } catch (err) {
 
-      console.log('decryption failed (hush_play): ', err, ciphertext, t.pipe_el);
+      console.log('decryption failed (hush_play): ', err, ciphertext, t.elem);
       return;
     }
     if (t.buffer) {
@@ -87,89 +82,104 @@ async function play(ciphertext, t) {
 // status_el , DOM element it can use to keep its status, display controls / status to user
 // channel, a datachannel handle 
 // encryptor, curried function it can use to encrypt
-export function create_sender(status_el, channel, encryptor) {
+export async function create_sender(status_el, channel_name, peerconn , encryptor) {
 
-  // local log
-  let loge = document.createElement('pre');
-  status_el.appendChild(loge);
+  const channel = peerconn.createDataChannel(channel_name, DATACHAN_CONF );
 
-  function log (msg)  {
-    for (var i = 0, j = arguments.length; i < j; i++){
-       // var txt = document.createTextNode(arguments[i]+' ');
-       // loge.appendChild(txt);
-        var alltext =alltext + arguments[i]+ ' -- ';
-    }
-    var br = document.createTextNode(alltext + "\n");
-    loge.appendChild(br);
-  }
+  const t = {
+    log: console.log,
+    elem: status_el,
+    encryptor: encryptor,
+    channel: channel, 
+    channel_name: channel_name,
+    peerconn: peerconn,
+  };
+  console.log('t', t); 
 
-  // datachannel stats
+  utils.formel('checkbox', t.elem, NAME + '_sender_close', function () { destroy_sender(t); });
+  utils.formel('checkbox', t.elem, NAME + '_sender_mute', function () { mute_sender(t); });
+  utils.formel('range', t.elem, NAME + '_sender_volume', function () { return; } );
+
+  // datachannel stats  
   let cstats = document.createElement('pre');
   var br = document.createTextNode(" stats here\n");
   cstats.appendChild(br);
-  status_el.appendChild(cstats);
-  window.setInterval(function () { utils.rendercstats(cstats, channel); }, 2000);
-
-  //let log = (status_el) => (msg) => local_log(status_el, msg);
-  
-  const t = {
-    log: log,
-    status_el: status_el,
-    encryptor: encryptor,
-    channel: channel,
-    status_el: status_el,
-  };
-  log('chan in create_sender: ', channel, t);
-  log('cryp in create_sender: ', encryptor);
+  t.elem.appendChild(cstats);
+  window.setInterval(function () { utils.rendercstats(cstats, t.channel); }, 2000);
 
   let title = document.createElement('legend');
-  title.textContent = "audiosender";
-  status_el.appendChild(title);
+  title.textContent = NAME + "_sender";
+  t.elem.appendChild(title);
 
-
-//  create-observer(status_el);
-  record(t);  
+  var s = await utils.start_stream();
+  console.log('stream: ', s, t);
+  capture_works(s, t);  
 }
+
+function cleanup(t) {
+ console.log('datachannel was closed', t.channel);
+ if (t.elem != undefined) {
+  t.elem.parentNode.removeChild(t.elem);
+ } else {
+  console.log('t.elem: ', t.elem);
+ }
+}
+
+function destroy_receiver(t) {
+  console.log('destroying receiver');
+  t.channel.close();
+  console.log('chan: ', t.channel);
+  cleanup(t)
+}
+
+function destroy_sender(t) {
+  console.log('destroying sender');
+  t.channel.close();
+  console.log('chan: ', t.channel);
+  cleanup(t)
+}
+
 
 // create a receiver 
 // status_el , DOM element it can use to keep its status, display controls / status to user
-// channel, a datachannel handle (for receiving)
 // decryptor, curried function it can use to encrypt
-export function create_receiver(pipe_el, channel, decryptor) {
-  // local log
-  let loge = document.createElement('pre');
-  pipe_el.appendChild(loge);
-
-  function log (msg)  {
-    for (var i = 0, j = arguments.length; i < j; i++){
-       // var txt = document.createTextNode(arguments[i]+' ');
-       // loge.appendChild(txt);
-        var alltext =alltext + arguments[i]+ ' -- ';
-    }
-    var br = document.createTextNode(alltext + "\n");
-    loge.appendChild(br);
-  }
+export function create_receiver(pipe_el, channel_name, peerconn ,decryptor) {
+ 
+  const channel = peerconn.createDataChannel(channel_name, DATACHAN_CONF );
 
   const t = {
-    log: log,
-    pipe_el: pipe_el,
+    log: console.log,
+    elem: pipe_el,
     decryptor: decryptor,
-    channel: channel,
-    buffer: undefined, 
-    queue: [], // put shit that can't be played now
-
+    channel: channel, 
+    channel_name: channel_name,
+    peerconn: peerconn,
   };
-  debug('chan in create_receiver: ', channel, t);
-  debug('cryp in create_receiver: ', decryptor, t);
 
-  //create_observer(pipe_el);
-  
+  // datachannel stats  
+  let cstats = document.createElement('pre');
+  var br = document.createTextNode("");
+  cstats.appendChild(br);
+  t.elem.appendChild(cstats);
+  window.setInterval(function () { utils.rendercstats(cstats, t.channel); }, 2000);
+
+
+  console.log('t', t); 
+  t.channel.addEventListener("close", function () { destroy_receiver(t) });
+  t.channel.addEventListener("closing", function () { destroy_receiver(t) });
+  t.elem.destroy = function () { destroy_receiver(t) };
+
+  utils.formel('checkbox', t.elem, NAME + '_receiver_close', function () { destroy_receiver(t); });
+  utils.formel('checkbox', t.elem, NAME + '_receiver_mute', function () { destroy_receiver(t); });
+  utils.formel('range', t.elem, NAME + '_receiver_volume', function () {
+    //FIXME volume 
+    return; 
+  });
+
+ 
   let title = document.createElement('legend');
-  title.textContent = "audioreceiver";
-  pipe_el.appendChild(title);
-
-  channel.addEventListener("open", console.log);
-  channel.addEventListener("close", console.log);
+  title.textContent = NAME + "_receiver";
+  t.elem.appendChild(title);
 
  }
 
