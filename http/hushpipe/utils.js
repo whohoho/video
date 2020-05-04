@@ -77,7 +77,7 @@ function fixupconstraints() {
   }
 }
 
-function sleep(ms) {
+export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -197,6 +197,26 @@ export async function start_stream() {
 
 }
 
+export function statusel(elem, name, state) {
+    var e, label;
+    e = document.getElementById(name + '_status');
+    label = document.getElementById(name + '_status_text');
+    if (e == null) {
+      e = document.createElement("div");
+      label = document.createElement("p");
+      label.setAttribute('id', name + "_status_text");
+      e.setAttribute('id', name + "_status");
+      label.setAttribute('class', 'hush_statusel');
+      e.appendChild(label);
+      elem.appendChild(e);
+
+    }
+
+    label.textContent = state;
+    return e;
+}
+
+
 export function formel(type, elem, name, callback) {
   if (type == 'select') {
     var cb = document.createElement("select");
@@ -262,11 +282,11 @@ export function find_media_devices() {
 };
 
 export function rendercstats (cstats, channel)  {
-    var text = 'buff: ' + channel.bufferedAmount
+    var text = '' + channel.label
+              + '\nbuff: ' + channel.bufferedAmount
                + '\nbufftresh: ' + channel.bufferedAmountLowThreshold
   /*
                + '\n id: ' + channel.id
-               + '\n label: ' + channel.label
                + '\n label: ' + channel.maxPacketLifetime
                + '\n maxretransmits: ' + channel.maxRetransmits
                + '\n negotiated: ' + channel.negotiated

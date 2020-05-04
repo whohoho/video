@@ -1,38 +1,21 @@
 'use strict';
 import * as utils from "./utils.js";
-import * as audiopipe from "./pipe_mod.js";
+
+//  import * as audiopipe from "./pipe_mod.js";
 //import * as opuspipe from "./opuspipe.js";
 //import * as chat from "./chat.js";
 
 
 //import { create_sender } from "./pipe_mod.js";
 
-import { hush_new_pipe } from "./hushpipe.js";
+import { hush_new_pipe, hush_get_user_elem } from "./hushpipe.js";
+import { DATACHAN_CONF, PEER_CONNECTION_CONFIG  } from "./settings.js";
+
 
 //FIXME
 var janusconn;
 var messages = [];
 
-const DATACHAN_CONF = {
-  ordered: false, 
-  maxRetransmits: 0,
-//  maxPacketLifeTime: null,
-  protocol: "",
-//  negotiated: false,
-};
-
-const PEER_CONNECTION_CONFIG = {
-    iceServers: [
-    {
-      urls: [ "turns:pipe.puscii.nl", "turn:pipe.puscii.nl" ],
-      username: "turnuser",
-      credential: "verysecretpassword"
-    },
-    { 
-      urls: "stun:pipe.puscii.nl" 
-    },
-  ]
-};
 
 // deal with errors from janus
 /*
@@ -47,13 +30,20 @@ function isError(signal) {
 }
 */
 
+export function janus_init(ctx) {
+  janus_connect(ctx);
+
+}
+
 // connect to janus (the SFU server)
 export function janus_connect(ctx) {
 //  console.log("1 ctx in janus_connect: ", ctx);
 
   var serverselect = document.getElementById('hush_serverselect');
   var server = serverselect.value;
+
   var ws = new WebSocket(server, "janus-protocol");
+  console.log('ws: ', ws, ws.send, ws.send.bind);
   var session = ctx.session = new Minijanus.JanusSession(ws.send.bind(ws), { verbose: true });
 
 
@@ -98,58 +88,15 @@ export function janus_connect(ctx) {
   });
 }
 
-// create a DOM element for a user in the room, all state of that user is stored here
-export function getUserEl(userId) {
-  const elid = "hushpipe_user_" + userId;
-  const users = document.getElementById('friends');
-  //console.log(users);
-  if (document.getElementById(elid)) {
-    // user is already known
-    return document.getElementById(elid);
-  } else {  // user not seen before
-    const user = document.createElement('fieldset');
-    user.janus_user_id = userId;
-    user.setAttribute('id', elid);
-    user.setAttribute('class', 'friend_div');
-    users.appendChild(user);
-    let title = document.createElement('legend');
-    title.textContent = userId;
-    user.appendChild(title);
-    return user;
-  }
 
-}
-
-
-function addUser(ctx, userId) {
-  //console.log("ctx in addUser: ", ctx);
-
-  if (document.getElementById(userId)) {
-    // user is already known
-    return true;
-  }
- 
-  console.info("Adding user " + userId + ".");
-  const elem = getUserEl(userId);
-
-  return attachSubscriber(ctx, userId)
+async function addUser(ctx, userId) {
+  hush_add_user(ctx, userId);
+  return await attachSubscriber(ctx, userId)
     .then(x =>   { ctx.subscribers[userId] = x; }, err => console.error("Error attaching subscriber: ", err));
 }
 
 function removeUser(ctx, userId) {
-  console.info("Removing user " + userId + ".");
-
-  // for debugging
-  //const users = document.getElementById('friends');
-  //console.log('user removed, users: ', users);
-  if (! document.getElementById("hushpipe_user_" + userId)) {
-    throw "user to remove is not there" ;
-  }
-
-  const userelem = getUserEl(userId);
-  //userelem.destroy();
-  userelem.parentNode.removeChild(userelem);
-
+  hush_remove_user(ctx, userId);
   // FIXME: get rid of ctx.subscribers
   var subscriber = ctx.subscribers[userId];
   if (subscriber != null) {
@@ -182,7 +129,7 @@ function associate(conn, handle, debugmsg) {
     handle.sendTrickle(ev.candidate || null).catch(e => console.error("Error trickling ICE: ", e));
   });
   conn.addEventListener("negotiationneeded", _ => {
-    console.info("Sending new offer for handle: ", handle, debugmsg);
+    //console.info("Sending new offer for handle: ", handle, debugmsg);
     var offer = conn.createOffer();
     var local = offer.then(o => conn.setLocalDescription(o));
     var remote = offer.then(j => handle.sendJsep(j)).then(r => conn.setRemoteDescription(r.jsep));
@@ -198,14 +145,14 @@ function associate(conn, handle, debugmsg) {
     } else if (ev.jsep && ev.jsep.type == "answer") {
       //console.log('associate: jsep answer', ev);
       // FIXME!! figure out how this whole jsep stuff actually works
-      console.info("associate:  answer for handle: ", handle, debugmsg, ev);
+      //console.info("associate:  answer for handle: ", handle, debugmsg, ev);
       //conn.setRemoteDescription(ev.jsep)
       //var local = answer.then(a => conn.setLocalDescription(a));
       //var remote = answer.then(j => handle.sendJsep(j));
       //Promise.all([local, remote]).catch(e => console.error("Error negotiating answer: ", e));
 
     } else {
-        console.log('associate: unknown', ev);
+        //console.log('associate: unknown', ev);
 
     }
   });
@@ -248,12 +195,12 @@ async function attachPublisher(ctx) {
   const friends = document.getElementById("friends")
  
   // Handle all of the join and leave events.
-  handle.on("event", ev => {
+  handle.on("event", async ev => {
     var data = ev.plugindata.data;
   
     if (data.event == "join" && data.room_id == ctx.roomId) {
       //console.log('join event: ', data)
-      addUser(ctx, data.user_id);
+      await addUser(ctx, data.user_id);
     } else if (data.event == "leave" && data.room_id == ctx.roomId) {
       removeUser(ctx, data.user_id);
     } else if (data.event == "data") {
@@ -271,9 +218,9 @@ async function attachPublisher(ctx) {
             //var occupants = reply.plugindata.data.response.users[ctx.roomId] || [];
             // here is where all users are created when you initially join the room
             //await Promise.all(occupants.map(userId => addUser(ctx, userId)));
-            data.response.users[ctx.roomId].forEach(function ( user ) {
+            data.response.users[ctx.roomId].forEach(async function ( user ) {
               //console.log(user);
-              addUser(ctx, user);
+              await addUser(ctx, user);
             });
 
         } else { // wrong room id
@@ -293,7 +240,7 @@ async function attachPublisher(ctx) {
       } else {
 
         if (ev.jsep && ev.jsep.type == "answer") {
-          console.log('jsep answer', ev);
+          //console.log('jsep answer', ev);
         } else {
 
           console.log('unhandled event: ', ev);
@@ -315,9 +262,9 @@ async function attachPublisher(ctx) {
   //ctx.videoChannel = newDataChannel("video_high_" + ctx.user_id);
 
   const myface = document.getElementById('myface');
-
+  let audiopipe = await import('./pipe_mod.js');
   const audiosend_el = myface.appendChild(document.createElement('fieldset'));
-  audiopipe.create_sender(audiosend_el, "audio_" + ctx.user_id, janusconn, ctx.encryptor);
+  let apt = audiopipe.create_sender(audiosend_el, "audio_" + ctx.user_id, janusconn, ctx.encryptor, ctx.decryptor);
 
   /*
   // audio wasm opus
@@ -352,13 +299,13 @@ async function attachPublisher(ctx) {
 }
 
 // creating all the channels for friend
-function attachSubscriber(ctx, otherId) {
+async function attachSubscriber(ctx, otherId) {
   console.info("Attaching subscriber to " + otherId + " for session: ", ctx.session);
   var conn = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
   var handle = new Minijanus.JanusPluginHandle(ctx.session);
   addExisting(conn, handle, "attach subscriber: " + otherId);
 
-  const userEl = getUserEl(otherId);
+  const userEl = hush_get_user_elem(otherId);
   // video
   /* TEMP
   const chan_video_high = newDataChannel("video_high_" + otherId);
@@ -378,13 +325,15 @@ function attachSubscriber(ctx, otherId) {
 
   // new_pipe creates a div with id "audio" under the user div
   const audiofeed = hush_new_pipe(userEl, "audio"); 
+  let audiopipe = await import('./pipe_mod.js');
   audiopipe.create_receiver(audiofeed, "audio_" + otherId, janusconn, ctx.decryptor);
  
   
   return handle.attach("janus.plugin.sfu")
-    .then(_ => handle.sendMessage({ kind: "join", room_id: ctx.roomId, user_id: ctx.user_id, subscribe: { media: otherId }}))
+    .then(_ => handle.sendMessage({ kind: "join", room_id: ctx.roomId, user_id: ctx.user_id, subscribe: { notifications: true, data: true, media: otherId }}))
     .then(_ => waitForEvent("webrtcup", handle))
     .then(_ => { return { handle: handle, conn: conn }; });
+    
 }
 
 

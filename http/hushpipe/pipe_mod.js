@@ -1,153 +1,298 @@
 'use strict';
-import "./pipe-common.js";
-import * as mediaplayer from "./pipe-common.js";
+import { 
+  destroy_sender, 
+  destroy_receiver, 
+  cleanup, 
+  DATACHAN_CONF,
+  common_create_sender,
+  common_create_receiver,
+//  DEFAULTS,
+} from "./pipe-common.js";
+
+import * as pc from "./pipe-common.js";
+import { capture_works, play_datachannel } from './vp.js';
 import * as utils from "./utils.js";
+export const DEFAULTS = pc.DEFAULTS;
 export const NAME = 'audio';
-const isDebug = true
 
-if (isDebug) var debug = console.log.bind(window.console)
-else var debug = function(){}
+// for opus
+import { JitterBuffer, channelRingBuffer, HeapAudioBuffer, RingBuffer } from './opuswasm/wasm-audio-helper.js';
 
-var warn = console.log.bind(window.console)
+async function receive(t, data, seq ) {
 
-const DATACHAN_CONF = {
-  ordered: false, 
-  maxRetransmits: 0,
-//  maxPacketLifeTime: null,
-  protocol: "",
-//  negotiated: false,
-};
-
-
-
-const TYPE = 'audio'
-
-const MIMETYPE = 'audio/webm;codecs=opus';
-const REC_MS = 10;
-const RECOPT = { 
-        audioBitsPerSecond :  64000,
-	      //videoBitsPerSecond : 2500000,
-	      //bitsPerSecond:       2628000,
-	      mimeType : MIMETYPE,
- 	    };
-
-async function capture_works(s, t){
-      if (t.rec_handle) {
-        console.log('already got a recorder, recreating it');
-        t.rec_handle.stop();
-        t.rec_handle = undefined;
-      };
-      rec_handle = new MediaRecorder(s);
-      t.rec_handle = rec_handle;
-      t.rec_handle.ondataavailable = function (data) { 
-//        console.log('audiorecord callback ', data);
-        utils.please_encrypt(data, t); 
-      }
-      t.rec_handle.start(REC_MS);
+  console.log('receive: ', t, data, seq);
+  
+  try {
+  var decrypted = await decrypt_uint8array(document.hush_key, buf); 
+  } catch (e) {
+    console.log('decryption failed', e);
   }
+  
+  t.JB.push (seq, decrypted);
 
-// takes datachannel event + feed element (div with 1 video inside)
-async function play_datachannel(evt, t) {
-//	 console.log("new audio buffer: ", evt, t);
+  //console.log('pt', plaintest);
 
-   var uint8View = new Uint8Array(evt.data);
-   play(uint8View, t)
+
 }
 
-// takes encrypted uint8array + feed element (div with 1 video inside)
-async function play(ciphertext, t) {
-  // console.log('encryptee: ', ciphertext, 'on feed: ' , t.pipe_el); 
-  // let v = t.pipe_el.getElementsByTagName(TYPE)[0];
-  //console.log('audio state: ', t.pipe_el.parentElement.id , v.currentTime, v.buffered, v.currentSrc, v.duration, v.ended, v.error, v.networkState);
-
+async function send (t, packetv, seq, packet) {
+  //console.log(packetv, seq);
+  
+  //console.log('encr: ', t.encryptor); 
     try {
-   var plain = await t.decryptor(ciphertext);
-    } catch (err) {
+      var ciphertext = await encrypt(document.hush_key, packetv, seq);
+    } catch (e) {
+      console.log('encryption failed', e);
+    }
+      try {
+       /* 
+        debug('chan in please_encrypt: \n chan: ', t.channel, 
+              '\ncrypter: ', t.encryptor, 
+              '\ncyphertext: ', ciphertext, 
+              '\ndata: ', blob_event.data);
+              */
+        switch(t.channel.readyState) {
+            case "connecting":
+              break;
+            case "open":
+              //console.log('.');
+              t.channel.send(ciphertext);
+              break;
+            case "closing":
+              console.log("Attempted to send message while closing: " , blob_event);
+              break;
+            case "closed":
+              console.log("Error! Attempt to send while connection closed.", blob_event);
+              blob_event.srcElement.stop();
+              break; 
+        }
 
-      console.log('decryption failed (hush_play): ', err, ciphertext, t.elem);
-      return;
-    }
-    if (t.buffer) {
-      if (t.buffer.updating || t.queue.length > 0) {
-        t.queue.push(plain);
-      } else {
-        t.buffer.appendBuffer(plain);
-      }
-    }
+      } catch (err) { console.log('send failed: ', err) }
+
+  
+  t.wasm._free(packet);
+  
 }
 
+
+function encode (audioProcessingEvent, t) {
+  //for debugging 
+  t.iter += 1;
+
+  var inputBuffer = audioProcessingEvent.inputBuffer;
+
+  t.iRB.push(inputBuffer.getChannelData(0));
+  //console.log(iRB.framesAvailable);
+
+  // Process only if we have enough frames for the encoder (480)
+  if (t.iRB.framesAvailable >= t.OpusBufferSize) {
+    //console.log(iH._channelData[0][0]);
+    t.iRB.pull(t.iH.getChannelData(0));
+
+    //FIXME: if we have to copy the packet later anyway, then this is not needed
+    const packet = t.wasm._malloc(t.OpusPacketSize);
+    const encret = t.wasm._encode(t.enc, t.iH.getHeapAddress(), packet);
+    //console.log(encret);
+    if ( encret < 0 ) {
+      console.log('encode error: ', encret);
+    }
+
+    //console.log('ret, packet: ', ret, packet);
+    const packetv = t.wasm.HEAP8.subarray(packet, packet + t.OpusPacketSize);
+    send(t, packetv, t.seq, packet);
+    t.seq += 1;
+    //---- > here is where the packet gets send 
+  }
+}
+
+function ladecode (audioProcessingEvent, t) {
+  var outputBuffer = audioProcessingEvent.outputBuffer;
+
+  /*
+    try {  
+      var decrypted = await decrypt_uint8array(document.hush_key, ciphertext);
+      //FIXME: figure out how to store this immediately in the heap
+    } catch (e) {
+      console.log('decryption failed', e);
+    }
+    */
+    //console.log('orig / decrypted', packetv, new Int8Array(decrypted));
+    //-------> we have a decrypted packet
+    // FIXME: figure out how to detect frame drops: 
+    // https://dxr.mozilla.org/mozilla-central/source/dom/media/webaudio/ScriptProcessorNode.cpp#133
+    // https://padenot.github.io/web-audio-perf/
+    // https://developer.mozilla.org/en-US/docs/Web/API/Performance
+    // now put it in jitterbuffer
+
+      var toplay = t.JB.pop();
+      //console.log(t);
+      if (toplay == null) {
+        const decret = t.wasm._decode(t.dec, 0, 0, t.oH.getHeapAddress());
+        if ( decret < 0 ) {
+          console.log('silence decode error: ', decret, encret);
+        } 
+      } else { //there is a packet to play
+
+        PDab.set(new Uint8Array(toplay))
+        //FIXME 1500 should be opus length
+        const decret = t.wasm._decode(t.dec, t.PDpointer, t.OpusPacketSize, t.oH.getHeapAddress());
+        if ( decret < 0 ) {
+          console.log('packet decode error: ', decret, encret, PDab, toplay, t.PDpointer);
+        }
+      } 
+
+    t.oRB.push(t.oH.getChannelData(0));
+  
+
+  t.oRB.pull(outputBuffer.getChannelData(0));
+
+}
+
+async function create_decoder(t) {
+  console.log('creating opus decoder');
+
+  //common
+  const OpusBufferSize = 480;
+  const OpusPacketSize = 1500; // 68 is actual size, padding is enabled
+
+  //decoder 
+  t.decsize = t.wasm._getDecoderSize();
+  t.dec = t.wasm._malloc(t.decsize);
+  console.log('init decoder: ', t.wasm._initDec(t.dec));
+  t.oRB = new channelRingBuffer(480, 1);
+  t.oH = new HeapAudioBuffer(t.wasm, 480, 1);
+  t.JB = new JitterBuffer();
+  t.PDpointer = t.wasm._malloc(OpusPacketSize);
+  t.PDab = t.wasm.HEAP8.subarray(t.PDpointer,t.PDpointer + t.OpusPacketSize);
+ 
+  var decoderNode = t.actx.createScriptProcessor(256, 1, 1);
+
+  decoderNode.onaudioprocess = function (evt) { ladecode(evt, t); } ;
+  decoderNode.connect(t.actx.destination);
+
+  t.decoderNode = decoderNode;
+    t.channel.onmessage =  function (evt) {
+      console.log('.,');
+   // console.log('got message', evt, evt.data.seq);
+    //  receive(t, evt.data.data, evt.data.seq);
+  };
+
+  console.log('chan: ', t.channel); 
+
+
+  
+
+}
+
+async function create_encoder(t) {
+    // get a ref to the webassembly module
+  t.wasm = document.m;
+
+  t.iter = 0;
+
+  //common
+  t.OpusBufferSize = 480;
+  t.OpusPacketSize = 1500; // 68 is actual size, padding is enabled
+
+  // encoder 
+  t.encsize = t.wasm._getEncoderSize();
+  t.enc = t.wasm._malloc(t.encsize);
+  console.log('init encoder: ', t.wasm._initEnc(t.enc));
+  //ringbuffer to match audiocontext frame size with opus frame size
+  t.iRB = new channelRingBuffer(480, 1);
+  t.iH =  new HeapAudioBuffer(t.wasm, 480, 1);
+
+  var encoderNode = await t.actx.createScriptProcessor(256, 1, 1);
+  encoderNode.onaudioprocess = function (evt) {
+    //console.log('wtf', evt); 
+    encode(evt, t); } ;
+  t.encoderNode = encoderNode;
+
+  t.instream.connect(t.encoderNode);
+  encoderNode.connect(t.actx.destination);
+
+  console.log(t.encoderNode);
+
+
+}
+
+async function setup_actx_record(t) {
+  const actx = new AudioContext({
+  latencyHint: 'interactive',
+  sampleRate: 48000,
+});
+  var s = await utils.start_stream();
+  var instream = actx.createMediaStreamSource(s);
+  t.actx = actx;
+  t.instream = instream;
+}
+
+async function setup_actx_play(t) {
+  const actx = new AudioContext({
+  latencyHint: 'interactive',
+  sampleRate: 48000,
+});
+  t.actx = actx;
+}
 
 
 // create a sender
 // status_el , DOM element it can use to keep its status, display controls / status to user
-// channel, a datachannel handle 
 // encryptor, curried function it can use to encrypt
-export async function create_sender(status_el, channel_name, peerconn , encryptor) {
-
+export async function create_sender(status_el, channel_name, peerconn , encryptor, decryptor) {
+  console.log('creating sender: ', channel_name);
   const channel = peerconn.createDataChannel(channel_name, DATACHAN_CONF );
 
   const t = {
+    seq: 0,
+    iter: 0,
+    c: DEFAULTS,
+    NAME: NAME,
     log: console.log,
     elem: status_el,
     encryptor: encryptor,
+    decryptor: decryptor,
     channel: channel, 
     channel_name: channel_name,
     peerconn: peerconn,
   };
   console.log('t', t); 
 
-  utils.formel('checkbox', t.elem, NAME + '_sender_close', function () { destroy_sender(t); });
-  utils.formel('checkbox', t.elem, NAME + '_sender_mute', function () { mute_sender(t); });
-  utils.formel('range', t.elem, NAME + '_sender_volume', function () { return; } );
+  // get a ref to the webassembly module
+  t.wasm = document.m;
 
-  // datachannel stats  
-  let cstats = document.createElement('pre');
-  var br = document.createTextNode(" stats here\n");
-  cstats.appendChild(br);
-  t.elem.appendChild(cstats);
-  window.setInterval(function () { utils.rendercstats(cstats, t.channel); }, 2000);
 
-  let title = document.createElement('legend');
-  title.textContent = NAME + "_sender";
-  t.elem.appendChild(title);
+  common_create_sender(t);
 
   var s = await utils.start_stream();
   console.log('stream: ', s, t);
-  capture_works(s, t);  
+  //capture_works(s, t);  
+
+  await setup_actx_record(t);
+  await create_encoder(t);
+  console.log('encoder created!', t.actx, t.instream);
+  utils.formel('range', t.elem, NAME + '_sender_volume', function () { return; } );  
+
 }
 
-function cleanup(t) {
- console.log('datachannel was closed', t.channel);
- if (t.elem != undefined) {
-  t.elem.parentNode.removeChild(t.elem);
- } else {
-  console.log('t.elem: ', t.elem);
- }
-}
+function mute_sender(t) {
 
-function destroy_receiver(t) {
-  console.log('destroying receiver');
-  t.channel.close();
-  console.log('chan: ', t.channel);
-  cleanup(t)
-}
-
-function destroy_sender(t) {
-  console.log('destroying sender');
-  t.channel.close();
-  console.log('chan: ', t.channel);
-  cleanup(t)
+  return;
 }
 
 
 // create a receiver 
 // status_el , DOM element it can use to keep its status, display controls / status to user
 // decryptor, curried function it can use to encrypt
-export function create_receiver(pipe_el, channel_name, peerconn ,decryptor) {
- 
-  const channel = peerconn.createDataChannel(channel_name, DATACHAN_CONF );
+export async function create_receiver(pipe_el, channel_name, peerconn ,decryptor) {
+   console.log('creating receiver: ', channel_name);
 
+  const channel = peerconn.createDataChannel(channel_name, DATACHAN_CONF );
+  
   const t = {
+    iter: 0,
+    c: DEFAULTS,
+    NAME: NAME,  
     log: console.log,
     elem: pipe_el,
     decryptor: decryptor,
@@ -155,33 +300,20 @@ export function create_receiver(pipe_el, channel_name, peerconn ,decryptor) {
     channel_name: channel_name,
     peerconn: peerconn,
   };
-
-  // datachannel stats  
-  let cstats = document.createElement('pre');
-  var br = document.createTextNode("");
-  cstats.appendChild(br);
-  t.elem.appendChild(cstats);
-  window.setInterval(function () { utils.rendercstats(cstats, t.channel); }, 2000);
+  // get a ref to the webassembly module
+  t.wasm = document.m;
 
 
-  console.log('t', t); 
-  t.channel.addEventListener("close", function () { destroy_receiver(t) });
-  t.channel.addEventListener("closing", function () { destroy_receiver(t) });
-  t.elem.destroy = function () { destroy_receiver(t) };
+  common_create_receiver(t);
+  await setup_actx_play(t);
+  await create_decoder(t);
 
-  utils.formel('checkbox', t.elem, NAME + '_receiver_close', function () { destroy_receiver(t); });
-  utils.formel('checkbox', t.elem, NAME + '_receiver_mute', function () { destroy_receiver(t); });
   utils.formel('range', t.elem, NAME + '_receiver_volume', function () {
-    //FIXME volume 
-    return; 
+  return; 
   });
 
  
-  let title = document.createElement('legend');
-  title.textContent = NAME + "_receiver";
-  t.elem.appendChild(title);
-
- }
+  }
 
 
 

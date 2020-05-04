@@ -42,7 +42,7 @@ const GCM_PARAMS = {
 };
 
 const IV_BYTES = 16; /* Length of the AES-256-GCM initialization vector */
-
+const ADDITIONAL_BYTES = 4;
 const MASTER_KEY_BYTES = 32; /* Length of the raw master key */
 
 /* TODO currently unused, but should be used for participants */
@@ -227,7 +227,7 @@ encrypt_blob(key, blob)
   );
   */
   const plaintext = await blob.arrayBuffer();
-  return encrypt(key, plaintext);   
+  return encrypt(key, plaintext, 0);   
 }
 
 
@@ -236,12 +236,28 @@ encrypt_blob(key, blob)
  * needs to decrypt (blob).
  */
 async function
-encrypt(key, plaintext)
+encrypt(key, plaintext, seq)
 {
+  const adbuf = new ArrayBuffer(4);
+
+  const seqa = new Uint32Array(adbuf);
+  seqa[0] = seq
+
+  const additional = new Uint8Array(adbuf);
+  //console.log('ec: ', adbuf, seqa, additional);
+/*
+  const additional = new Uint8Array(ADDITIONAL_BYTES);
+  additional[0] = 0;
+  additional[1] = 0;
+  additional[2] = 0;
+  additional[3] = 0;
+    seq = 12345;
+    */
     const iv = await crypto.getRandomValues(new Uint8Array(IV_BYTES));
     const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
 	{...GCM_PARAMS,
-	 'iv': iv
+	 'iv': iv,
+    'additionalData': additional
 	}, key, plaintext));
     /* TODO Things that could be put in AdditionalData:
      * - timecode
@@ -261,9 +277,11 @@ encrypt(key, plaintext)
      * Now we allocate yet another copy of all this shit and
      * blit the IV onto the end of ciphertext:
      */
-    const ret = new Uint8Array(iv.length + ciphertext.length);
+    const ret = new Uint8Array(iv.length + ciphertext.length + additional.length);
     ret.set(ciphertext, 0);
     ret.set(iv, ciphertext.length); /* 2nd arg: offset into dst */
+    ret.set(additional, (ciphertext.length + iv.length))
+    //console.log('sending: iv, additional ', iv, additional);
     return ret;
 }
 
@@ -276,24 +294,43 @@ decrypt_uint8array(key, buf)
 //    console.log('buf in decrypt: ', buf)
   //const iv = 1234;
   //console.log(buf);
-  //try {
-    const iv = await buf.subarray(-IV_BYTES);
+  //try { 
+    const additional = await buf.subarray(-ADDITIONAL_BYTES);
   //} catch (e) {
+  //  console.log('additional failed ', e);
+ // }
+//  try {
+    const iv = await buf.subarray(-(IV_BYTES + ADDITIONAL_BYTES), -ADDITIONAL_BYTES);
+    //console.log(iv);
+ // } catch (e) {
   //  console.log('iv failed: ', e);
   //  return false;
-  //}
+ // }
   //try {
-    const data = await buf.subarray(0, -IV_BYTES);
+    const data = await buf.subarray(0, -(IV_BYTES + ADDITIONAL_BYTES));
   //} catch (e) {
   //  console.log('error with buf in decrypt', e);
   //  return;
   //}
+  //console.log('decrypt: buf, data, iv, add ', buf, data, iv, additional);
   try {
     var decrypted = crypto.subtle.decrypt(
 	{...GCM_PARAMS,
-	 'iv': iv
+	'iv': iv,
+  'additionalData': additional
 	}, key, data);
-    return decrypted;
+
+    //let av = new DataView(additional);
+    var uint32 = new Uint32Array(additional.buffer.slice(additional.byteOffset, additional.byteLength + additional.byteOffset));
+      //.buffer, additional.byteOffset, additional.byteLength);
+
+    //let seqn = additional.getInt32(0)
+    //console.log('decrypted seq',additional.buffer, uint32[0]);
+    const d = {
+      seq: uint32[0],
+      data: await decrypted
+    }
+    return d;
   } catch (e) {
     console.log('err in decrypt', e);
   }

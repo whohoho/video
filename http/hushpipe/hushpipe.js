@@ -2,12 +2,14 @@
 'use strict';
 
 import * as utils from "./utils.js";
-import * as audiopipe from "./pipe_mod.js";
+//import * as audiopipe from "./pipe_mod.js";
 //import * as dc from "./datachannels.js";
 import { create_sender } from "./pipe_mod.js";
-import * as dc from "./datachannels.js";
+//import * as dc from "./datachannels.js";
+import * as dc from "./ndc.js";
+
 import "./adapter.js";
-import "./bundle.js";
+//import "./bundle.js";
 
 
 let $ = a => document.querySelector(a);
@@ -27,6 +29,58 @@ const HUSH_CODEC = 'video/webm;codecs=vp8';
  * https://www.w3.org/TR/quota-api/ - get bigger allowance for local data
  * https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getConstraints#Example - how to change camera
  */
+export function hush_add_user(ctx, userId) {
+  console.log("ctx in addUser: ", ctx);
+
+  if (document.getElementById(userId)) {
+    console.log('already known: ', userId);
+    // user is already known
+    return true;
+  }
+ 
+  console.info("Adding user " + userId + ".");
+  const elem = hush_get_user_elem(userId);
+
+}
+
+export function hush_remove_user(ctx, userId) {
+  console.info("Removing user " + userId + ".");
+
+  // for debugging
+  //const users = document.getElementById('friends');
+  //console.log('user removed, users: ', users);
+  if (! document.getElementById("hushpipe_user_" + userId)) {
+    throw "user to remove is not there" ;
+  }
+
+  const userelem = hush_get_user_elem(userId);
+  //userelem.destroy();
+  userelem.parentNode.removeChild(userelem);
+
+}
+
+// create a DOM element for a user in the room, all state of that user is stored here
+export function hush_get_user_elem(userId) {
+  const elid = "hushpipe_user_" + userId;
+  const users = document.getElementById('friends');
+  //console.log(users);
+  if (document.getElementById(elid)) {
+    // user is already known
+    return document.getElementById(elid);
+  } else {  // user not seen before
+    const user = document.createElement('fieldset');
+    user.janus_user_id = userId;
+    user.setAttribute('id', elid);
+    user.setAttribute('class', 'friend_div');
+    users.appendChild(user);
+    let title = document.createElement('legend');
+    title.textContent = userId;
+    user.appendChild(title);
+    return user;
+  }
+
+}
+
 
 async function
 hush_read_key()
@@ -55,7 +109,9 @@ hush_read_key()
     }
 
    // encrypt_blob(key, blob)
-    let encryptor = (key) => (blob) => encrypt_blob(key, blob);
+   let encryptor_blob = (key) => (blob) => encrypt_blob(key, blob);
+   let encryptor = (key) => (blob) => encrypt(key, blob);
+
   //decrypt_uint8array(key, buf)
     let decryptor = (key) => (buf) => decrypt_uint8array(key, buf);
 
@@ -69,14 +125,16 @@ hush_read_key()
     	roomId: hush_room,
       key: hush_key,
       encryptor: encryptor(hush_key),
+      encryptor_blob: encryptor_blob(hush_key),
       decryptor: decryptor(hush_key),
 
     };
-
+    document.hush_key = hush_key;
     console.log('crypt functions: ', ctx.encryptor, ctx.decryptor);
 
     gctx = ctx;
-    dc.janus_connect(ctx);
+    document.ctx = ctx;
+    dc.janus_init(ctx);
     return true;
 }
 

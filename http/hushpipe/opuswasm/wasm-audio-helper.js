@@ -152,6 +152,7 @@ export class JitterBuffer {
     this.pulls += 1;
 
     //console.log('jitter status', this.seqin, this.seqout, this.numslots, this.clock, this.pulls, this.increase);
+    /*
     if ( this.pulls % 100 == 0 )
     {
       console.log('jitter stats\n in: ', this.seqin, 
@@ -166,7 +167,7 @@ export class JitterBuffer {
      
       );
     }
-
+    */
     if (this.seqin != null) {
       // start counting when first packet arrives, don't count when we increase buffer size
       this.clock += 1;
@@ -192,7 +193,7 @@ export class JitterBuffer {
     //console.log('la: out >   ', this.seqout, (this.seqin - this.numslots) );
     if ((this.seqout) > (this.seqin - this.numslots)) {
       //FIXME: this can also happen during playing, figure out if that makes sense
-      console.log('buffer not filled yet, waiting with playing: in, out, num', this.seqin, this.seqout, this.numslots);
+      //console.log('buffer not filled yet, waiting with playing: in, out, num', this.seqin, this.seqout, this.numslots);
       return null;
     } else {
       //console.log('initially filled (out should be 1 (or first seq we got), cause 1 is the first packet), in, out', this.seqin, this.seqout);

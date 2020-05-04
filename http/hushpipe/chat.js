@@ -1,54 +1,68 @@
 'use strict';
+import { 
+  destroy_sender, 
+  destroy_receiver, 
+  cleanup, 
+  DATACHAN_CONF,
+  common_create_sender,
+  common_create_receiver,
+//  DEFAULTS,
+} from "./pipe-common.js";
+
+import * as pc from "./pipe-common.js";
+import { capture_works, play_datachannel } from './vp.js';
 import * as utils from "./utils.js";
+export const DEFAULTS = pc.DEFAULTS;
 export const NAME = 'chat';
-const isDebug = true
 
-if (isDebug) var debug = console.log.bind(window.console)
-else var debug = function(){}
-
-var warn = console.log.bind(window.console)
-
-
-const TYPE = 'chat'
-
-export function create_duplex(status_el, channel, encryptor, decryptor) {
-
-  // local log
-  let loge = document.createElement('pre');
-  status_el.appendChild(loge);
-
-  function log (msg)  {
-    for (var i = 0, j = arguments.length; i < j; i++){
-       // var txt = document.createTextNode(arguments[i]+' ');
-       // loge.appendChild(txt);
-        var alltext =alltext + arguments[i]+ ' -- ';
-    }
-    var br = document.createTextNode(alltext + "\n");
-    loge.appendChild(br);
-  }
-
-  // datachannel stats
-   let cstats = document.createElement('pre');
-  var br = document.createTextNode(" stats here\n");
-  cstats.appendChild(br);
-  status_el.appendChild(cstats);
-  window.setInterval(utils.rendercstats(cstats, channel), 2000);
- 
-  //let log = (status_el) => (msg) => local_log(status_el, msg);
+async function send (t, packetv, seq, packet) {
+  //console.log(packetv, seq);
   
-  const t = {
-    log: log,
-    status_el: status_el,
-    encryptor: encryptor,
-    channel: channel,
-    status_el: status_el,
-  };
-  log('chan in create_sender: ', channel, t);
-  log('cryp in create_sender: ', encryptor);
+  //console.log('encr: ', t.encryptor); 
+    try {
+      var ciphertext = await encrypt(document.hush_key, packetv, seq);
+    } catch (e) {
+      console.log('encryption failed', e);
+    }
+      try {
+       /* 
+        debug('chan in please_encrypt: \n chan: ', t.channel, 
+              '\ncrypter: ', t.encryptor, 
+              '\ncyphertext: ', ciphertext, 
+              '\ndata: ', blob_event.data);
+              */
+        switch(t.channel.readyState) {
+            case "connecting":
+              break;
+            case "open":
+              //console.log('.');
+              t.channel.send(ciphertext);
+              break;
+            case "closing":
+              console.log("Attempted to send message while closing: " , blob_event);
+              break;
+            case "closed":
+              console.log("Error! Attempt to send while connection closed.", blob_event);
+              blob_event.srcElement.stop();
+              break; 
+        }
 
-  let title = document.createElement('legend');
-  title.textContent = NAME;
-  status_el.appendChild(title);
+      } catch (err) { warn('send failed: ', err) }
+
+
+  //console.log('ct', ciphertext);
+  
+  try {
+  var plaintest = await t.decryptor(ciphertext); 
+  } catch (e) {
+    console.log('decryption failed', e);
+  }
+  //console.log('pt', plaintest);
+  
+  t.wasm._free(packet);
+  
 }
+
+
 
 
