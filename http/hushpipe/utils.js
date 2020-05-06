@@ -127,20 +127,27 @@ export async function start_stream() {
 
     }
     var micperm = false, camperm = false;
+    
     await navigator.permissions.query({name: 'microphone'})
       .then((permissionObj) => {
+        console.log(permissionObj);
         micperm = permissionObj.state;
       })
       .catch((error) => {
         console.log('Got error :', error);
+        micperm = true;
       })
 
    await  navigator.permissions.query({name: 'camera'})
       .then((permissionObj) => {
+        console.log(permissionObj);
         camperm = permissionObj.state;
       })
       .catch((error) => {
+
         console.log('Got error :', error);
+        camperm = true;
+
       })
     console.log('permissions mic/cam: ', micperm, camperm);
     var mic = false, cam = false;
@@ -197,10 +204,47 @@ export async function start_stream() {
 
 }
 
+export function chatbox(elem, name) {
+    var e, label, pre;
+    e = document.getElementById(name + '_chatbox_fieldset');
+    label = document.getElementById(name + '_chatbox_label');
+    pre = document.getElementById(name + '_chatbox_pre');
+
+    if (elem == null) {
+    elem = document.getElementById('misplaced');
+    }
+    if (e == null) {
+      e = document.createElement("fieldset");
+      pre = document.createElement("pre");
+      label = document.createElement("legend");
+      label.setAttribute('id', name + "_chatbox_label");
+      e.setAttribute('id', name + "_chatbox_fieldset");
+      label.setAttribute('class', 'hush_label');
+      e.appendChild(pre);
+      e.appendChild(label);
+      elem.appendChild(e);
+
+    }
+    e.preElem = pre;
+    e.append = function (msg) { 
+      console.log('append: ', e, msg);
+      let m = document.createTextNode(msg + '\n');
+      e.preElem.appendChild(m);
+
+    };
+    label.textContent = name;
+    e.append('chat here!');
+    return e;
+}
+
+
 export function statusel(elem, name, state) {
     var e, label;
     e = document.getElementById(name + '_status');
     label = document.getElementById(name + '_status_text');
+    if (elem == null) {
+    elem = document.getElementById('misplaced');
+    }
     if (e == null) {
       e = document.createElement("div");
       label = document.createElement("p");
@@ -218,6 +262,10 @@ export function statusel(elem, name, state) {
 
 
 export function formel(type, elem, name, callback) {
+  if (elem == null) {
+    elem = document.getElementById('misplaced');
+  }
+
   if (type == 'select') {
     var cb = document.createElement("select");
   } else {

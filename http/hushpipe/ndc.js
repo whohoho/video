@@ -7,7 +7,7 @@
  */
 import * as utils from "./utils.js";
 
-import { Janus } from './janus.js'
+//import { Janus } from './janus.js'
 //import * as Janus from './janus.es.js'
 
 import { hush_add_user, hush_remove_user, hush_new_pipe, hush_get_user_elem } from "./hushpipe.js";
@@ -15,7 +15,7 @@ import { DATACHAN_CONF, PEER_CONNECTION_CONFIG  } from "./settings.js";
 
 import "./bundle.js";
 
-  console.log(Janus);
+ // console.log(Janus);
 
 export function janus_init(ctx) {
   var elem = document.getElementById('hushpipe_controls');
@@ -91,13 +91,20 @@ function receive_from_janus(evt) {
 }
 
 async function evt_icecandidate(evt, sfuh) {
-  //console.log('icecandidate: ', evt);
-  sfuh.sendTrickle(evt.candidate || null).catch(e => console.error("Error trickling ICE: ", e));
+  console.log('icecandidate: ', evt);
+  if (evt.candidate) {
+    //if(candidate.length > 0) {
+    console.log("Local ICE candidate", evt.candidate)
+    sfuh.sendTrickle(evt.candidate || null).catch(e => console.error("Error trickling ICE: ", e));
+  } else {
+    console.log("All local ICE candidates sent to remote peer", evt)
+  }
+
 }
 async function evt_negotiationneeded(evt, sfuh) {
   var rtcpc = evt.target;
   var offer = await rtcpc.createOffer();
-  //console.log('offer: ', offer);
+  console.log('offer: ', offer);
   var local = await rtcpc.setLocalDescription(offer);
   //console.log('neg needed, evt,  local: ', evt, await local);
 
@@ -112,15 +119,25 @@ function control_plugin_evt(evt, handle) {
 //    console.log('plugin evt: ', evt, handle, data.room_id, handle.room_id); 
     if (data.event == "join" && data.room_id == handle.room_id) {
     
-      hush_add_user(document.ctx, data.user_id);
-
+      if ( handle.occupants.has(data.user_id) ) {
+        throw 'impossible';
+      } else {
+        handle.occupants.add(data.user_id);
+        hush_add_user(document.ctx, data.user_id);
+      }
     } else if (data.event == "leave" && data.room_id == handle.room_id) {
-   
-      hush_remove_user(document.ctx, data.user_id);
-
+ 
+      if ( handle.occupants.has(data.user_id) ) {
+        handle.occupants.delete(data.user_id);
+        hush_remove_user(document.ctx, data.user_id);
+      } else {
+        throw 'impossible';
+      }
+  
+      
     } else if (data.event == "data") {
       console.log(data);
-    }
+    } 
 
 };
 
@@ -133,6 +150,18 @@ async function sfu_handle(ctx, name) {
   await d.handle.attach("janus.plugin.sfu")
   d.handle.on('event', function (evt) { control_plugin_evt(evt, d); } );
   d.pc = new RTCPeerConnection(PEER_CONNECTION_CONFIG);
+  console.log('rtcpc with config: ', d.pc.getConfiguration() , d.pc.currentLocalDescription);
+
+  //d.pc.restartIce();
+  d.pc.ontrack = function (evt) {
+    console.log('ontrack: ',name,  evt);
+  };
+  d.pc.ondatachannel = function (evt) {
+    console.log('ondatachannel: ',name,  evt);
+  };
+  d.pc.onidentityresult = function (evt) {
+    console.log('onidentityresult: ', name, evt);
+  };
   await d.pc.addEventListener("icecandidate", function (evt) { evt_icecandidate(evt, d.handle); });
   await d.pc.addEventListener("negotiationneeded", function (evt) { evt_negotiationneeded(evt, d.handle); });
 
@@ -143,14 +172,27 @@ async function sfu_handle(ctx, name) {
     subscribe: { notifications: true, data: true }
   });
 
-  var occupants = reply.plugindata.data.response.users[d.room_id] || [];
-  console.log('occupants:  ',d, occupants);
+  d.occupants = new Set(reply.plugindata.data.response.users[d.room_id] || []);
+  d.occupants.forEach(function (u) { hush_add_user(ctx, u); });
+  console.log('occupants:  ',d, d.occupants);
+
+  console.log('rtcpc with config: ', d.pc.getConfiguration() , d.pc.currentLocalDescription);
+
 
   return d;
 }
 
 
-
+function send_chat(evt) {
+  console.log('chatevt: ', evt);
+  if (evt.type == 'change') {
+    let chatCh = document.ctx.chatCh;
+    let m = document.ctx.nickname + ': ' + evt.target.value;
+    evt.target.value = null;
+    chatCh.send(m);
+    document.ctx.chatbox.append(m);
+  }
+}
 
 export async function janus_connect(ctx) {
 
@@ -163,11 +205,44 @@ export async function janus_connect(ctx) {
 
   ctx.sfu_control = await sfu_handle(ctx, 'sfu');
 
-  ctx.sfu2 = await sfu_handle(ctx, 'sfu2');
+  ctx.sfu_opus = await sfu_handle(ctx, 'sfu2');
 
 
-  var testCh = await ctx.sfu_control.pc.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
-  var testCh2 = await ctx.sfu2.pc.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
+  ctx.chatCh = await ctx.sfu_control.pc.createDataChannel("reliable", { ordered: true, maxRetransmits: 10 });
+  ctx.chatCh.onerror = function(evt) {
+    console.log('datachannel error: ', evt);
+    throw 'FIXME: deal with connection failures';
+  }
+  ctx.chatCh.onclose = function(evt) {
+    console.log('datachannel close: ', evt);
+  }
+  ctx.chatCh.onclosing = function(evt) {
+    console.log('datachannel close: ', evt);
+  }
+
+  ctx.chatCh.onmessage = function (evt) { 
+    console.log('chat: ', evt);
+    document.ctx.chatbox.append(evt.data);
+
+  };
+  console.log("got a chan", ctx.chatCh); 
+
+  while (true){
+      if (ctx.chatCh.readyState == 'open') {
+        console.log("got a chan", ctx.chatCh);
+       ctx.chatbox = utils.chatbox(null, 'chatbox');
+        
+        utils.formel('text', ctx.chatbox, 'chat_input_message', send_chat);
+        utils.statusel(ctx.chatbox, 'chatcahnnel', 'ready');
+          break;
+      }
+    await utils.sleep(100); 
+    };
+
+  //window.setInterval(function () { console.log('sending'); ctx.chatCh.send("hello! from: " + ctx.user_id); }, 1000);
+
+
+  var testCh2 = await ctx.sfu_opus.pc.createDataChannel("unreliable", { ordered: false, maxRetransmits: 0 });
 
 
 //  ctx.controlhandle = new Minijanus.JanusPluginHandle(ctx.session);

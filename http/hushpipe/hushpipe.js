@@ -114,9 +114,11 @@ hush_read_key()
 
   //decrypt_uint8array(key, buf)
     let decryptor = (key) => (buf) => decrypt_uint8array(key, buf);
+    let user_id = new String(Math.floor(Math.random() * (1000000001)));
 
     let ctx = {
-    	user_id: new String(Math.floor(Math.random() * (1000000001))),
+    	user_id: user_id,
+      nickname: user_id,
       session: null,
       publisher: null,
       subscribers: {},
@@ -196,8 +198,19 @@ async function
 hush_onload()
 {
     console.log('hushpipe \nTRY\nTRY\nTRY\nTRY\nTRY\nloading');
+  /*
+  try {
+    //FIXME: this fails in firefox
     utils.find_media_devices();
-    await utils.start_stream();
+  } catch (e) {
+    console.log('error in find_media_devices', e);
+  }
+  try {
+    utils.start_stream();
+  } catch (e) { 
+    console.log('error in start_stream when loading');
+  }
+  */
     $('#hush_newroom').onclick = hush_newroom;
     $('#hush_camera_record').onclick = hush_camera_record;
     $('#hush_camera_stop').onclick = hush_camera_stop;
@@ -239,4 +252,4 @@ hush_onload()
 
 }
 
-window.addEventListener("load", hush_onload());
+window.addEventListener("load", hush_onload);

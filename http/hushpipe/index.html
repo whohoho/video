@@ -9,10 +9,17 @@
     const mymod = Module();
     document.m = mymod;
     console.log('mymod: ', mymod);  
+
+const EventTargetPrototype = document.__proto__.__proto__.__proto__.__proto__;
+const origAddEventListener = EventTargetPrototype.addEventListener;
+EventTargetPrototype.addEventListener = function addEventListenerWrapper(type, listener) {
+    if (typeof listener !== 'function') throw new Error('bad listener for ' + type);
+    return origAddEventListener.apply(this, arguments);
+};
     </script>
 
     <!-- janus.js needs this -->
-    <script src="adapter.js"></script>
+    <!-- <script src="adapter.js"></script> -->
 
     <link rel="stylesheet" type="text/css" href="hushpipe.css">
 
@@ -25,6 +32,10 @@
   </head>
   <body>
     <p>
+      <fieldset id="misplaced">
+        <legend> things that are misplaced </legend>
+      </fieldset>
+
       <fieldset id="hushpipe_controls">
 	<legend>Hushpipe controls</legend>
 	<button id="hush_newroom">New room + key</button>
