@@ -1,7 +1,7 @@
 version: '2'
 
 services:
-  hushjanus:
+  janus:
     #image: atyenoria/janus-webrtc-gateway-docker:latest
     # image: mcroth/docker-janus:latest 
     build:
