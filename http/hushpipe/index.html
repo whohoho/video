@@ -41,9 +41,10 @@ EventTargetPrototype.addEventListener = function addEventListenerWrapper(type, l
 	<button id="hush_newroom">New room + key</button>
 	<button id="hush_getkey">Clear</button>
   <select id="hush_serverselect">
+
+    <option value='wss://hlsorigindev.laglab.org/janus'>Testserver, wss</option>
     <option value='wss://localhost/janus'>local, wss (via nginx)</option>
     <!--    <option value='wss://localhost'>local, np, wss</option> -->
-    <option value='wss://hlsorigindev.laglab.org/janus'>Testserver, wss</option>
     <!--    <option value='wss://hlsorigindev.laglab.org/janus'>Testserver, https</option> -->
     <option value='ws://localhost:8188'>Localhost, ws (direct to janus)</option>
   </select>

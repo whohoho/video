@@ -2,40 +2,13 @@ version: '2'
 
 services:
   janus:
-    #image: atyenoria/janus-webrtc-gateway-docker:latest
-    # image: mcroth/docker-janus:latest 
     build:
       context: .
       dockerfile: janus.dockerfile
     volumes:
-      - ./janus/etc/janus/:/opt/janus/etc/janus/
+      - ./janus-testserver-config/:/opt/janus/etc/janus/
       - ./keys:/opt/keys/
-      - ./janus/janus.log:/var/log/janus.log:rw
-    ports:
-      - 8088:8088
-      - 8081:8081
-      - 8188:8188
-
-  hush-http-server:
-    image: nginx
-    ports:
-      - 9443:443
-      - 980:80
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./http:/www/static:ro
-      - ./mime.types:/etc/nginx/mime.types
-      - ./keys:/opt/certs
-
-   #docker run -d -p 3478:3478 -p 49152-65535:49152-65535/udp instrumentisto/coturn
-  coturn:
-    image: instrumentisto/coturn
-    ports:
-      - 3478:3478
-      - 49152-65535:49152-65535/udp 
-    network_mode: "host"
-
-
+    
 networks:
   default:
     external:

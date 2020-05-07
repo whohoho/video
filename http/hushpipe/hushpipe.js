@@ -103,7 +103,7 @@ hush_read_key()
      * Replace connection Janus
      */
     if (gctx) {
-	gctx.session.destroy();
+	gctx.janus_session.destroy();
 	try { clearInterval(gctx.debugInterval);
 	    } catch(e){}
     }

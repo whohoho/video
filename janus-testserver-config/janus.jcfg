@@ -1,0 +1,197 @@
+general: {
+  configs_folder = "/opt/janus/etc/janus"
+  plugins_folder = "/opt/janus/lib/janus/plugins"
+  transports_folder = "/opt/janus/lib/janus/transports"
+	events_folder = "@eventdir@"			# Event handlers folder
+	loggers_folder = "@loggerdir@"			# External loggers folder
+
+	log_to_stdout = true					# Whether the Janus output should be writte
+	debug_level = 4							# Debug/logging level, valid values are 0-7
+	admin_secret = "janusoverlord"
+	server_name = "MyJanusInstance"
+	session_timeout = 180
+	candidates_timeout = 45		# How long (in seconds) we should keep hold of
+									# pending (trickle) candidates before discarding
+									# them (default=45s). Notice that setting this
+									# to 0 will NOT disable the timeout, but will
+									# be considered an invalid value and ignored.
+	reclaim_session_timeout = 180
+ 	#event_loops = 8				# By default, Janus handles each have their own
+									# event loop and related thread for all the media
+									# routing and management. If for some reason you'd
+									# rather limit the number of loop/threads, and
+									# you want handles to share those, you can do that
+									# configuring the event_loops property: this will
+									# spawn the specified amount of threads at startup,
+									# run a separate event loop on each of them, and
+									# add new handles to one of them when attaching.
+									# Notice that, while cutting the number of threads
+									# and possibly reducing context switching, this
+									# might have an impact on the media delivery,
+									# especially if the available loops can't take
+									# care of all the handles and their media in time.
+									# As such, if you want to use this you should
+									# provision the correct value according to the
+									# available resources (e.g., CPUs available).
+	#opaqueid_in_api = true			# Opaque IDs set by applications are typically
+									# only passed to event handlers for correlation
+									# purposes, but not sent back to the user or
+									# application in the related Janus API responses
+									# or events; in case you need them to be in the
+									# Janus API too, set this property to 'true'.
+	#hide_dependencies = true		# By default, a call to the "info" endpoint of
+									# either the Janus or Admin API now also returns
+									# the versions of the main dependencies (e.g.,
+									# libnice, libsrtp, which crypto library is in
+									# use and so on). Should you want that info not
+									# to be disclose, set 'hide_dependencies' to true.
+
+		# The following is ONLY useful when debugging RTP/RTCP packets,
+		# e.g., to look at unencrypted live traffic with a browser. By
+		# default it is obviously disabled, as WebRTC mandates encryption.
+	#no_webrtc_encryption = true
+
+		# Janus provides ways via its API to specify custom paths to save
+		# files to (e.g., recordings, pcap captures and the like). In order
+		# to avoid people can mess with folders they're not supposed to,
+		# you can configure an array of folders that Janus should prevent
+		# creating files in. If the 'protected_folder' property below is
+		# commented, no folder is protected.
+		# Notice that at the moment this only covers attempts to start
+		# an .mjr recording and pcap/text2pcap packet captures.
+	protected_folders = [
+		"/bin",
+		"/boot",
+		"/dev",
+		"/etc",
+		"/initrd",
+		"/lib",
+		"/lib32",
+		"/lib64",
+		"/proc",
+		"/sbin",
+		"/sys",
+		"/usr",
+		"/var",
+    "/home"
+			# We add what are usually the folders Janus is installed to
+			# as well: we don't just put "/opt/janus" because that would
+			# include folders like "/opt/janus/share" that is where
+			# recordings might be saved to by some plugins
+		"/opt/janus/bin",
+		"/opt/janus/etc",
+		"/opt/janus/include",
+		"/opt/janus/lib",
+		"/opt/janus/lib32",
+		"/opt/janus/lib64",
+		"/opt/janus/sbin"
+	]
+}
+
+# Certificate and key to use for DTLS (and passphrase if needed). If missing,
+# Janus will autogenerate a self-signed certificate to use. Notice that
+# self-signed certificates are fine for the purpose of WebRTC DTLS
+# connectivity, for the time being, at least until Identity Providers
+# are standardized and implemented in browsers. If for some reason you
+# want to enforce the DTLS stack in Janus to enforce valid certificates
+# from peers, though, you can do that setting 'dtls_accept_selfsigned' to
+# 'false' below: DO NOT TOUCH THAT IF YOU DO NOT KNOW WHAT YOU'RE DOING!
+# You can also configure the DTLS ciphers to offer: the default if not
+# set is "DEFAULT:!NULL:!aNULL:!SHA256:!SHA384:!aECDH:!AESGCM+AES256:!aPSK"
+# Finally, by default NIST P-256 certificates are generated (see #1997),
+# but RSA generation is still supported if you set 'rsa_private_key' to 'true'.
+certificates: {
+	#cert_pem = "/opt/keys/server.public.certificate"
+	#cert_key = "/opt/keys/server.secret.key"
+	#cert_pwd = "secretpassphrase"
+	dtls_accept_selfsigned = true
+	#dtls_ciphers = "your-desired-openssl-ciphers"
+	#rsa_private_key = false
+}
+
+# Media-related stuff: you can configure whether if you want
+# to enable IPv6 support, the minimum size of the NACK queue (in ms,
+# defaults to 200ms) for retransmissions no matter the RTT, the range of
+# ports to use for RTP and RTCP (by default, no range is envisaged), the
+# starting MTU for DTLS (1200 by default, it adapts automatically),
+# how much time, in seconds, should pass with no media (audio or
+# video) being received before Janus notifies you about this (default=1s,
+# 0 disables these events entirely), how many lost packets should trigger
+# a 'slowlink' event to users (default=4), and how often, in milliseconds,
+# to send the Transport Wide Congestion Control feedback information back
+# to senders, if negotiated (default=200ms). Finally, if you're using BoringSSL
+# you can customize the frequency of retransmissions: OpenSSL has a fixed
+# value of 1 second (the default), while BoringSSL can override that. Notice
+# that lower values (e.g., 100ms) will typically get you faster connection
+# times, but may not work in case the RTT of the user is high: as such,
+# you should pick a reasonable trade-off (usually 2*max expected RTT).
+media: {
+	#ipv6 = true
+	#min_nack_queue = 500
+	#rtp_port_range = "20000-40000"
+	#dtls_mtu = 1200
+	#no_media_timer = 1
+	#slowlink_threshold = 4
+	#twcc_period = 100
+	#dtls_timeout = 500
+}
+
+# NAT-related stuff: specifically, you can configure the STUN/TURN
+# servers to use to gather candidates if the gateway is behind a NAT,
+# and srflx/relay candidates are needed. In case STUN is not enough and
+# this is needed (it shouldn't), you can also configure Janus to use a
+# TURN server# please notice that this does NOT refer to TURN usage in
+# browsers, but in the gathering of relay candidates by Janus itself,
+# e.g., if you want to limit the ports used by a Janus instance on a
+# private machine. Furthermore, you can choose whether Janus should be
+# configured to do full-trickle (Janus also trickles its candidates to
+# users) rather than the default half-trickle (Janus supports trickle
+# candidates from users, but sends its own within the SDP), and whether
+# it should work in ICE-Lite mode (by default it doesn't). Finally,
+# you can also enable ICE-TCP support (beware that this may lead to problems
+# if you do not enable ICE Lite as well), choose which interfaces should
+# be used for gathering candidates, and enable or disable the
+# internal libnice debugging, if needed.
+nat: {
+	stun_server = "pipe.puscii.nl"
+	stun_port = 3478
+	nice_debug = true
+	#full_trickle = true
+  
+	ice_lite = true
+	ice_tcp = true
+
+	ignore_mdns = true
+
+	turn_server = "pipe.puscii.nl"
+	turn_port = 3478
+	turn_type = "tls"
+	turn_user = "turnuser"
+	turn_pwd = "verysecretpassword"
+
+	#ice_enforce_list = "eth0"
+
+	ice_ignore_list = "vmnet"
+
+	ignore_unreachable_ice_server = false
+}
+
+plugins: {
+	#disable = "libjanus_voicemail.so,libjanus_recordplay.so"
+	disable = "libjanus_voicemail.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_videoroom.so,libjanus_sip.so,libjanus_nosip.so,libjanus_textroom.so,libjanus_echotest.so,libjanus_streaming.so,libjanus_audiobridge.so,"
+
+
+}
+
+transports: {
+	disable = "libjanus_rabbitmq.so,libjanus_pfunix.so,libjanus_http.so"
+}
+loggers: {
+	#disable = "libjanus_jsonlog.so"
+}
+
+events: {
+	broadcast = true
+	#disable = "libjanus_sampleevh.so"
+	#stats_period = 5
+}

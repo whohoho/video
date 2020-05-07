@@ -9,7 +9,7 @@ services:
       dockerfile: janus.dockerfile
     container_name: janus-new
     volumes:
-      - ./janus/etc/janus/:/opt/janus/etc/janus/
+      - ./janus-local-config/:/opt/janus/etc/janus/
       - ./keys:/opt/keys/
       - ./janus/janus.log:/var/log/janus.log:rw
     ports:
