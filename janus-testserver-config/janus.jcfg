@@ -156,10 +156,10 @@ nat: {
 	stun_server = "pipe.puscii.nl"
 	stun_port = 3478
 	nice_debug = true
-	#full_trickle = true
+	full_trickle = true
   
-	ice_lite = true
-	ice_tcp = true
+	#ice_lite = true
+	#ice_tcp = true
 
 	ignore_mdns = true
 
