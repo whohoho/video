@@ -27,7 +27,7 @@ export const PEER_CONNECTION_CONFIG = {
      */ 
  /*   { 'urls': 'turn:ec2-54-68-238-149.us-west-2.compute.amazonaws.com:3478', 'username': 'test', 'credential': 'test' },
     { 'urls': ['stun:stun.l.google.com:19302'] }, */
-/*
+
     { 
       urls: "stun:pipe.puscii.nl" 
     },
@@ -57,7 +57,7 @@ export const PEER_CONNECTION_CONFIG = {
       username: "turnuser",
       credential: "verysecretpassword"
     },
-*/
+
 
     
   ]
